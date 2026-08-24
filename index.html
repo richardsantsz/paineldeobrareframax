@@ -318,6 +318,7 @@ const TABS = [
   {id:'ordens', label:'Ordens'},
   {id:'visitas', label:'Visitas'},
   {id:'notas', label:'Notas'},
+  {id:'semana', label:'Resumo da Semana'},
 ];
 
 const FIELDS = {
@@ -787,12 +788,17 @@ function notaDeadline(dataSolicitacao){
   return d;
 }
 
-function notasVencendoSemana(){
+function getWeekRange(){
   const hoje = new Date(); hoje.setHours(0,0,0,0);
   const diaSemana = hoje.getDay(); // 0=domingo
   const offsetSegunda = diaSemana===0 ? -6 : 1-diaSemana;
   const segunda = new Date(hoje); segunda.setDate(hoje.getDate()+offsetSegunda);
-  const domingo = new Date(segunda); domingo.setDate(segunda.getDate()+6);
+  const domingo = new Date(segunda); domingo.setDate(segunda.getDate()+6); domingo.setHours(23,59,59,999);
+  return {segunda, domingo};
+}
+
+function notasVencendoSemana(){
+  const {segunda, domingo} = getWeekRange();
   return state.notas.filter(n=>{
     const dl = notaDeadline(n.dataSolicitacao);
     return dl && dl>=segunda && dl<=domingo;
@@ -804,6 +810,62 @@ function notasAVencer7Dias(){
     const v = notaVencimento(n.dataSolicitacao);
     return v.restante>=0 && v.restante<=7;
   }).sort((a,b)=> notaVencimento(a.dataSolicitacao).restante - notaVencimento(b.dataSolicitacao).restante);
+}
+
+function notasDaSemanaPorSituacao(situacoes){
+  const {segunda, domingo} = getWeekRange();
+  return state.notas.filter(n=>{
+    if(!situacoes.includes(n.situacaoVisita)) return false;
+    if(!n.atualizadoEm) return false;
+    const d = new Date(n.atualizadoEm);
+    return d>=segunda && d<=domingo;
+  }).sort((a,b)=> (b.atualizadoEm||0)-(a.atualizadoEm||0));
+}
+
+function renderResumoSemanaList(list, emptyMsg){
+  if(list.length===0){
+    return `<div class="empty" style="padding:18px 10px;"><b style="font-size:15px;">${emptyMsg}</b></div>`;
+  }
+  return `<div class="table-scroll"><table><thead><tr>
+      <th>Nº Nota</th><th>Área</th><th>Descrição</th><th>Responsável Atual</th><th>Situação da Visita</th><th>Atualizado em</th>
+    </tr></thead><tbody>
+    ${list.map(n=>{
+      const dt = n.atualizadoEm ? new Date(n.atualizadoEm).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '—';
+      const code = situacaoVisitaCode(n.situacaoVisita);
+      return `<tr>
+        <td class="mono">${n.numero}</td>
+        <td>${n.area}</td>
+        <td>${n.texto}</td>
+        <td>${n.responsavelAtual||'—'}</td>
+        <td><span class="status-tag ${code}">${n.situacaoVisita}</span></td>
+        <td class="mono">${dt}</td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div>`;
+}
+
+function renderResumoSemana(){
+  const visitadas = notasDaSemanaPorSituacao(['VISITADO']);
+  const canceladas = notasDaSemanaPorSituacao(['CANCELADO']);
+  const executadas = notasDaSemanaPorSituacao(['ELABORADO','CONCLUÍDO']);
+  return `
+    <div class="dash-section">
+      <h3>Visitadas nesta semana</h3>
+      ${renderResumoSemanaList(visitadas, 'Nenhuma nota marcada como visitada nesta semana.')}
+    </div>
+    <div class="dash-section">
+      <h3>Canceladas nesta semana</h3>
+      ${renderResumoSemanaList(canceladas, 'Nenhuma nota cancelada nesta semana.')}
+    </div>
+    <div class="dash-section">
+      <h3>Executadas nesta semana</h3>
+      ${renderResumoSemanaList(executadas, 'Nenhuma nota executada/concluída nesta semana.')}
+    </div>
+    <div class="empty" style="padding:14px;margin-top:6px;">
+      <b style="font-size:13px;">Como funciona</b>
+      Esta aba mostra notas cuja "Situação da Visita" foi alterada para Visitado, Cancelado, Elaborado ou Concluído durante a semana atual (segunda a domingo). A data considerada é a da última mudança de status, feita na aba Notas.
+    </div>
+  `;
 }
 
 function renderNotaAlertList(list, emptyMsg){
@@ -1318,9 +1380,11 @@ async function handleImportFile(ev){
 }
 
 function render(){
-  const titles = {dashboard:'Dashboard', ordens:'Ordens', visitas:'Visitas', notas:'Notas'};
+  const titles = {dashboard:'Dashboard', ordens:'Ordens', visitas:'Visitas', notas:'Notas', semana:'Resumo da Semana'};
   const tables = {ordens:renderOrdensTable, visitas:renderVisitasTable, notas:renderNotasTable};
   const isDashboard = activeTab==='dashboard';
+  const isSemana = activeTab==='semana';
+  const isReadOnlyTab = isDashboard || isSemana;
   document.getElementById('app').innerHTML = `
     <header class="top">
       <div class="brand">
@@ -1350,7 +1414,7 @@ function render(){
       <div class="panel-head">
         <h2>${titles[activeTab]}</h2>
         ${renderCounts()}
-        ${!isDashboard ? `<div class="panel-head-actions">
+        ${!isReadOnlyTab ? `<div class="panel-head-actions">
           <button class="btn ghost" onclick="document.getElementById('importFile').click()">Importar planilha</button>
           <input type="file" id="importFile" accept=".xlsx,.xls" style="display:none;" onchange="handleImportFile(event)"/>
           <button class="btn ${formOpen[activeTab]?'ghost':'accent'}" onclick="toggleForm('${activeTab}', ${!formOpen[activeTab]})">
@@ -1358,7 +1422,7 @@ function render(){
           </button>
         </div>` : ''}
       </div>
-      ${isDashboard ? renderDashboard() : `${renderForm(activeTab)}${tables[activeTab]()}`}
+      ${isDashboard ? renderDashboard() : isSemana ? renderResumoSemana() : `${renderForm(activeTab)}${tables[activeTab]()}`}
     </section>
   `;
 }
@@ -1442,6 +1506,7 @@ async function updateNotaField(id, field, value){
   const item = state.notas.find(n=>n.id===id);
   if(!item) return;
   item[field] = value;
+  if(field==='situacaoVisita' || field==='status'){ item.atualizadoEm = Date.now(); }
   render();
   await saveTab('notas');
 }
