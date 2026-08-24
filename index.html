@@ -376,10 +376,17 @@ try{
   }
 }catch(e){ console.error('Falha ao iniciar Firebase', e); db = null; }
 
+function withTimeout(promise, ms){
+  return Promise.race([
+    promise,
+    new Promise((_, reject)=> setTimeout(()=> reject(new Error('timeout')), ms))
+  ]);
+}
+
 async function storageGet(key, shared){
   if(db){
     try{
-      const doc = await db.collection('painel-obra-data').doc(key).get();
+      const doc = await withTimeout(db.collection('painel-obra-data').doc(key).get(), 8000);
       if(!doc.exists) return null;
       return {key, value: doc.data().value, shared: !!shared};
     }catch(e){ console.error('storageGet (Firestore) falhou', e); }
@@ -392,7 +399,7 @@ async function storageGet(key, shared){
 async function storageSet(key, value, shared){
   if(db){
     try{
-      await db.collection('painel-obra-data').doc(key).set({value, updatedAt: Date.now()});
+      await withTimeout(db.collection('painel-obra-data').doc(key).set({value, updatedAt: Date.now()}), 8000);
       return {key, value, shared: !!shared};
     }catch(e){ console.error('storageSet (Firestore) falhou', e); }
   }
@@ -496,6 +503,7 @@ function renderPhotoModal(){
 }
 
 let currentUser = null;
+let initError = '';
 let usersList = [];
 let loginError = '';
 let userPanelOpen = false;
@@ -523,6 +531,7 @@ function renderLogin(){
         <img class="logo" src="${LOGO_SRC}" alt="Logo da empresa"/>
         <h1>Painel de Obra</h1>
         <div class="sub" style="margin-bottom:18px;">Acesso restrito</div>
+        ${initError ? `<div class="login-error" style="margin-bottom:14px;">${initError}</div>` : ''}
         <form onsubmit="return handleLogin(event)">
           <label>Usuário<input type="text" name="username" required autofocus/></label>
           <label>Senha<input type="password" name="password" required/></label>
@@ -1394,7 +1403,15 @@ async function removeItem(tab, id){
 }
 
 (async function init(){
-  await loadUsers();
+  try{
+    await withTimeout(loadUsers(), 12000);
+  }catch(e){
+    console.error('Falha ao carregar usuários', e);
+    initError = 'Não foi possível conectar ao banco de dados agora. Você ainda pode tentar entrar (dados locais deste navegador).';
+    if(usersList.length===0){
+      usersList = [{ id: uid(), username: 'admin', password: 'reframax2026', role: 'admin', criadoEm: Date.now() }];
+    }
+  }
   renderLogin();
 })();
 </script>
