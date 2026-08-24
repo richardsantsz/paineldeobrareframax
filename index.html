@@ -6,6 +6,9 @@
 <title>Painel de Obra</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
   :root{
     --bg:#EDF1F8;
@@ -81,6 +84,87 @@
     background:#fff;color:var(--ink);border:none;border-radius:var(--radius);
     padding:6px 12px;font-family:'Inter',sans-serif;font-weight:600;font-size:12.5px;cursor:pointer;
   }
+  .panel-head-actions{display:flex;gap:8px;align-items:center;}
+  .filter-bar{
+    display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;
+    background:#F5F6F7;border:1px solid var(--line);border-radius:var(--radius);
+    padding:12px 14px;margin-bottom:14px;
+  }
+  .filter-field{display:flex;flex-direction:column;font-size:11px;color:var(--ink-soft);font-weight:600;text-transform:uppercase;letter-spacing:0.3px;gap:4px;position:relative;}
+  .filter-field select{
+    font-family:'Inter',sans-serif;font-size:13px;padding:6px 8px;
+    border:1px solid var(--line);border-radius:var(--radius);background:#fff;color:var(--ink);min-width:140px;
+  }
+  .filter-field-label{font-size:11px;color:var(--ink-soft);font-weight:600;text-transform:uppercase;letter-spacing:0.3px;}
+  .filter-dropdown-btn{
+    font-family:'Inter',sans-serif;font-size:13px;font-weight:500;text-transform:none;letter-spacing:0;
+    padding:7px 10px;border:1px solid var(--line);border-radius:var(--radius);background:#fff;color:var(--ink);
+    cursor:pointer;min-width:150px;text-align:left;white-space:nowrap;
+  }
+  .filter-dropdown-btn.active{border-color:var(--accent);color:var(--accent);font-weight:600;}
+  .filter-dropdown-panel{
+    position:absolute;top:100%;left:0;margin-top:4px;z-index:50;
+    background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:0 8px 24px rgba(19,42,82,0.14);padding:8px;min-width:210px;max-height:240px;overflow-y:auto;
+  }
+  .filter-checkbox{
+    display:flex;align-items:center;gap:8px;padding:5px 4px;font-size:13px;font-weight:400;
+    text-transform:none;letter-spacing:0;color:var(--ink);cursor:pointer;white-space:nowrap;
+  }
+  .filter-checkbox input{cursor:pointer;}
+
+  .dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px;}
+  .dash-card{
+    background:#F5F7FB;border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px;text-align:center;
+  }
+  .dash-card.bad{background:var(--bad-bg);border-color:var(--bad);}
+  .dash-card.warn{background:var(--warn-bg);border-color:var(--warn);}
+  .dash-card.ok{background:var(--ok-bg);border-color:var(--ok);}
+  .dash-num{font-family:'Barlow Condensed',sans-serif;font-size:36px;font-weight:700;color:var(--ink);}
+  .dash-label{font-size:12px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.3px;margin-top:2px;}
+
+  .dash-block{margin-bottom:36px;padding-bottom:8px;}
+  .dash-block-ordens{border-bottom:3px dashed var(--line);padding-bottom:32px;}
+  .dash-block-title{
+    font-family:'Barlow Condensed',sans-serif;font-size:26px;text-transform:uppercase;
+    letter-spacing:0.4px;margin:0 0 16px;color:var(--ink);
+    border-left:5px solid var(--accent);padding-left:12px;
+  }
+
+  .dash-section{margin-bottom:26px;}
+  .dash-section h3{
+    font-family:'Barlow Condensed',sans-serif;font-size:18px;text-transform:uppercase;
+    letter-spacing:0.3px;margin:0 0 12px;border-bottom:2px solid var(--line);padding-bottom:6px;
+  }
+  .dash-two-col{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-bottom:8px;}
+  @media(max-width:760px){ .dash-two-col{grid-template-columns:1fr;} }
+
+  .pie-block{background:#FAFBFD;border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:18px;}
+  .pie-block h4{
+    font-family:'Barlow Condensed',sans-serif;font-size:16px;text-transform:uppercase;
+    letter-spacing:0.3px;margin:0 0 14px;color:var(--ink);
+  }
+  .pie-body{display:flex;align-items:center;gap:20px;flex-wrap:wrap;}
+  .pie-empty{font-size:13px;color:var(--ink-soft);}
+  .pie-legend{display:flex;flex-direction:column;gap:6px;flex:1;min-width:140px;}
+  .pie-legend-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);}
+  .pie-swatch{width:11px;height:11px;border-radius:3px;flex-shrink:0;}
+  .pie-legend-label{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .pie-legend-count{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--ink-soft);white-space:nowrap;}
+  .pie-legend-clickable{cursor:pointer;border-radius:4px;padding:3px 4px;margin:0 -4px;transition:background .12s;}
+  .pie-legend-clickable:hover{background:#EDF1F8;}
+  .pie-slice-clickable{cursor:pointer;transition:opacity .12s;}
+  .pie-slice-clickable:hover{opacity:0.8;}
+  .pie-hint{font-family:'Inter',sans-serif;font-size:10.5px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-soft);margin-left:8px;}
+  .bar-row-clickable{cursor:pointer;border-radius:4px;padding:3px 4px;margin:0 -4px 5px;transition:background .12s;}
+  .bar-row-clickable:hover{background:#EDF1F8;}
+
+  .bar-row{display:grid;grid-template-columns:130px 1fr 34px;align-items:center;gap:10px;margin-bottom:8px;}
+  .bar-label{font-size:12.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .bar-track{background:#EDF1F8;border-radius:20px;height:12px;overflow:hidden;}
+  .bar-fill{height:100%;border-radius:20px;transition:width .3s;}
+  .bar-count{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink-soft);text-align:right;}
   header.top h1{
     font-family:'Barlow Condensed',sans-serif;
     font-weight:700;font-size:34px;letter-spacing:0.5px;
@@ -179,6 +263,9 @@
     padding:5px 8px;border:1px solid var(--line);border-radius:var(--radius);
     background:#fff;color:var(--ink);cursor:pointer;
   }
+  .status-select.ok{border-color:var(--ok);color:var(--ok);background:var(--ok-bg);}
+  .status-select.warn{border-color:var(--warn);color:var(--warn);background:var(--warn-bg);}
+  .status-select.bad{border-color:var(--bad);color:var(--bad);background:var(--bad-bg);}
   .date-input{
     font-family:'JetBrains Mono',monospace;font-size:12px;
     padding:5px 7px;border:1px solid var(--line);border-radius:var(--radius);
@@ -217,7 +304,10 @@
 <script>
 const DAY = 24*60*60*1000;
 const LOGO_SRC = 'data:image/png;base64,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';
+const INITIAL_NOTAS = [{"numero": "26310446", "area": "P-09D-03B", "texto": "Pintura da estrutura e corremão da plata", "dataSolicitacao": "2026-06-02", "solicitante": "ANTONIO COSTA", "telefone": "", "centroCusto": "não identificado", "responsavel": "RICHARD", "dataVisita": "", "status": "Aberta"}, {"numero": "26310466", "area": "P-09D-03C", "texto": "Pintura da estrutura e corremão da plata", "dataSolicitacao": "2026-06-02", "solicitante": "ANTONIO COSTA", "telefone": "", "centroCusto": "não identificado", "responsavel": "RICHARD", "dataVisita": "", "status": "Aberta"}, {"numero": "26301942", "area": "C-020-08B", "texto": "REVITALIZA PINTURA CONTRA-PESO C-020-08B", "dataSolicitacao": "2026-05-27", "solicitante": "WELLITON FERREIRA", "telefone": "", "centroCusto": "não identificado", "responsavel": "RICHARD", "dataVisita": "", "status": "Concluída"}, {"numero": "26311256", "area": "Rua E-19", "texto": "#I.E.- TRAT. PINTUR PIPE RACK E-19", "dataSolicitacao": "2026-03-05", "solicitante": "ADEMIR / ERACLIENE", "telefone": "", "centroCusto": "A3311059", "responsavel": "JOÃO", "dataVisita": "", "status": "Concluída"}, {"numero": "26306071", "area": "PR-14A-02X", "texto": "Reparo e Pintura", "dataSolicitacao": "2026-05-29", "solicitante": "DEIZIANE SILVA", "telefone": "", "centroCusto": "A3301014", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26317770", "area": "SE-10C-1", "texto": "Pintura nos transformadores da SE-10C01", "dataSolicitacao": "2026-06-08", "solicitante": "MACHADO", "telefone": "", "centroCusto": "A3309005", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26274100", "area": "T-07A-02B", "texto": "T-07A-02B serviço de pintura", "dataSolicitacao": "2026-05-05", "solicitante": "MARCOS VINICIUS NEVES OLIVEIRA", "telefone": "", "centroCusto": "A3312002", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26315054", "area": "PR-09B-01X", "texto": "pintura de vigas sala de sódio 09B", "dataSolicitacao": "2026-06-05", "solicitante": "VALERIA/EVERTON", "telefone": "", "centroCusto": "A3313002", "responsavel": "RÔMULO", "dataVisita": "2026-06-24", "status": "Concluída"}, {"numero": "26324105", "area": "PR-97A-04X", "texto": "PINTURA | CALDERARIA", "dataSolicitacao": "2026-06-12", "solicitante": "ADINAILDO PAES", "telefone": "", "centroCusto": "A3310018", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26331792", "area": "AC-57D-09X", "texto": "Pintura da caldeiraria 57D", "dataSolicitacao": "2026-06-18", "solicitante": "Teodorico", "telefone": "", "centroCusto": "A3301012", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26329600", "area": "PR-71A-01X", "texto": "Pintura da parede do box de solda", "dataSolicitacao": "2026-06-17", "solicitante": "Adriane Figueiredo.", "telefone": "", "centroCusto": "A3310012", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26328798", "area": "E-10B-04C", "texto": "PINTURA DA ESCADA MIRANTE", "dataSolicitacao": "2026-06-16", "solicitante": "Mariléa Rosário", "telefone": "", "centroCusto": "A3313008", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26345194", "area": "PR-73A-01X", "texto": "PINTURA SALAS SUPORTE DIRETORIA", "dataSolicitacao": "2026-06-30", "solicitante": "FRANCISCO NETO", "telefone": "", "centroCusto": "A1110001", "responsavel": "JOÃO", "dataVisita": "", "status": "Concluída"}, {"numero": "26346735", "area": "PR-34E-003", "texto": "PINTURA EM PISO NA SALA DE TREINAMENTO", "dataSolicitacao": "2026-07-01", "solicitante": "JORDANA", "telefone": "", "centroCusto": "A3311048", "responsavel": "JOÃO", "dataVisita": "", "status": "Concluída"}, {"numero": "26348401", "area": "PR-34E-003", "texto": "Pintura de piso do predio da Manutenção", "dataSolicitacao": "2026-07-02", "solicitante": "HELAINE SILVA", "telefone": "", "centroCusto": "A3313020", "responsavel": "JOÃO", "dataVisita": "", "status": "Concluída"}, {"numero": "26349080", "area": "PR-71A-01X", "texto": "Pintura da sala da Eracliene", "dataSolicitacao": "2026-07-02", "solicitante": "ADEMIR / ERACLIENE", "telefone": "", "centroCusto": "A3311059", "responsavel": "JOÃO", "dataVisita": "", "status": "Concluída"}, {"numero": "26367100", "area": "PR-34E-01", "texto": "solicito pintura da praça de residuo", "dataSolicitacao": "2026-07-16", "solicitante": "helaine silva", "telefone": "", "centroCusto": "A3311048", "responsavel": "JOÃO", "dataVisita": "", "status": "Concluída"}, {"numero": "26341565", "area": "PR-28A-01X", "texto": "SOLIC.PINTURA.ZEBRAR.ESTRUTURA. 28A.", "dataSolicitacao": "2026-06-26", "solicitante": "ELIAS REZENDE", "telefone": "", "centroCusto": "A3311031", "responsavel": "JOÃO", "dataVisita": "2026-07-14", "status": "Aberta"}, {"numero": "26348525", "area": "PR-07B-01X", "texto": "RLZ. PINT. DE SINALIZAÇÃO SEG. SALA MAT.", "dataSolicitacao": "2026-07-02", "solicitante": "ALEX LIMA", "telefone": "", "centroCusto": "A33010005", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26288623", "area": "Rua N-33", "texto": "Pintura Pipe Reck", "dataSolicitacao": "2026-05-16", "solicitante": "Eracliene / Ademir", "telefone": "", "centroCusto": "não identificado", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26311250", "area": "T-48D-07C", "texto": "REALIZAR PINTURA ANTICORROSIVA NR13", "dataSolicitacao": "2026-06-02", "solicitante": "ARGEL COSTA", "telefone": "", "centroCusto": "A3310020", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26364977", "area": "PR-03C-001", "texto": "pintura do predio da EDB e estacionamen", "dataSolicitacao": "2026-07-15", "solicitante": "Deusimar Santos", "telefone": "", "centroCusto": "A1420004", "responsavel": "JOÃO", "dataVisita": "", "status": "Concluída"}, {"numero": "26310285", "area": "F-14C-51A", "texto": "REALIZAR PINTURA DA ESTRUTURA METÁLICA", "dataSolicitacao": "2026-06-02", "solicitante": "GEAN JACOB", "telefone": "", "centroCusto": "A3302030", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26327906", "area": "ER-02B-06", "texto": "Pintura para proteção da ER-02B-06", "dataSolicitacao": "2026-06-16", "solicitante": "Elionice", "telefone": "", "centroCusto": "Não identificado", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26328353", "area": "E-14A-17X", "texto": "#PDE CALDEIRA DZ", "dataSolicitacao": "2026-06-16", "solicitante": "THACYLA SOUZA", "telefone": "", "centroCusto": "Não identificado", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26336961", "area": "ER-04B-01", "texto": "Pintura pra ER-04B-01", "dataSolicitacao": "2026-06-23", "solicitante": "Charlle Silva", "telefone": "", "centroCusto": "A3310008", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26337221", "area": "ER-57A-16", "texto": "PINTURA PARA O ABRIGO DAS ER-57A-15/16", "dataSolicitacao": "2026-06-23", "solicitante": "Charlle Silva", "telefone": "", "centroCusto": "A3310008", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26345301", "area": "E-14C-03B", "texto": "PINTURA TAMPAS PROTEÇÃO TG 02", "dataSolicitacao": "2026-06-30", "solicitante": "TEODORICO", "telefone": "", "centroCusto": "HA-I246505-20-01", "responsavel": "RICHARD", "dataVisita": "", "status": "Concluída"}, {"numero": "26346495", "area": "E-57A-02X", "texto": "Pintura da sala elétrica precipitador", "dataSolicitacao": "2026-07-01", "solicitante": "SERGIO FEIO", "telefone": "", "centroCusto": "A33101013", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26348909", "area": "HYAL-OFCE-71A", "texto": "REVITALIZAÇÃO DA CENTRAL DE RESÍDUOS", "dataSolicitacao": "2026-07-02", "solicitante": "ANDERSON SIDRIN", "telefone": "", "centroCusto": "A3304002", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26350256", "area": "PR-73A-01X", "texto": "PINTURA ESCRITÓRIO AUTOMAÇÃO", "dataSolicitacao": "2026-07-03", "solicitante": "SHEILA GONÇALVES", "telefone": "", "centroCusto": "SEM INFORMAÇÃO", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26368211", "area": "PR-71A-01X", "texto": "Pintura do Prédio da Oficna Eletrica", "dataSolicitacao": "2026-07-17", "solicitante": "Ingrid Dias Seabra", "telefone": "", "centroCusto": "A3310012", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26370440", "area": "PR-57D-01X", "texto": "RLZ. PINT.NO VÃO SUPERIOR  SALA EXT.", "dataSolicitacao": "2026-07-20", "solicitante": "ALEX LIMA", "telefone": "", "centroCusto": "A3310005", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26321277", "area": "PR-28A-01X", "texto": "PINTURA EM SALA PREDIO OF. ELÉTRICA 28A", "dataSolicitacao": "2026-06-10", "solicitante": "JACQUELINE CRUZ", "telefone": "", "centroCusto": "A3310009", "responsavel": "JOÃO", "dataVisita": "", "status": "Concluída"}, {"numero": "26298974", "area": "T-58A-01A", "texto": "Escadas e plataformas sem condições de a", "dataSolicitacao": "2026-05-24", "solicitante": "GIZELE DE AZEVEDO ALMDEIDA", "telefone": "", "centroCusto": "A3302029", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26250613", "area": "PR-14A-02X", "texto": "REVITALIZAÇÃO PINTURA PRÉDIO ADM ENG 14", "dataSolicitacao": "2026-04-17", "solicitante": "JOSÉ CARLOS", "telefone": "", "centroCusto": "A3301009", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26283238", "area": "PR-73A-01X", "texto": "REMOÇÃO E PINTURA DE PISO LABORATÓRIO", "dataSolicitacao": "2026-05-12", "solicitante": "LUZINETE ANTUNES", "telefone": "", "centroCusto": "A3312010", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26295582", "area": "T-82C-05X", "texto": "PV-PINTURA DA FAIXA DE SEGURANÇA", "dataSolicitacao": "2026-05-21", "solicitante": "VICTOR MACIEL", "telefone": "", "centroCusto": "A3302023", "responsavel": "RICHARD", "dataVisita": "", "status": "Aberta"}, {"numero": "26288624", "area": "CLP-83C-01", "texto": "Pintura da casa de Bomba 83C", "dataSolicitacao": "2026-05-16", "solicitante": "ADEMIR DE SANTANA RIBEIRO", "telefone": "", "centroCusto": "A3311059", "responsavel": "RICHARD", "dataVisita": "", "status": "Aberta"}, {"numero": "26287609", "area": "PR-87A-02X", "texto": "REALIZAR PINTURA RESTAURANTE PORTO", "dataSolicitacao": "2026-05-15", "solicitante": "ERASMO PINTO", "telefone": "", "centroCusto": "A3314028", "responsavel": "LUCAS", "dataVisita": "", "status": "Aberta"}, {"numero": "26290700", "area": "P-09D-03B", "texto": "PINTURA DA PLATAFORMA P-09D-03B", "dataSolicitacao": "2026-05-18", "solicitante": "LEANDRO MENDES", "telefone": "", "centroCusto": "A3310023", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26290702", "area": "P-09D-03C", "texto": "PINTURA DA PLATAFORMA P-09D-03C", "dataSolicitacao": "2026-05-18", "solicitante": "LEANDRO MENDES", "telefone": "", "centroCusto": "A3310023", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26290723", "area": "P-09C-03A", "texto": "PINTURA DA PLATAFORMA P-09C-03A", "dataSolicitacao": "2026-05-18", "solicitante": "LEANDRO MENDES", "telefone": "", "centroCusto": "A3310023", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26295290", "area": "PR-71A-01X", "texto": "REALIZAR PINTURA", "dataSolicitacao": "2026-05-21", "solicitante": "LARISSA FERNANDA MELO DE SOUSA", "telefone": "", "centroCusto": "A1410001", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26295511", "area": "PR-73A-01X", "texto": "PINTURA DA SALA DE CONTROLE 73", "dataSolicitacao": "2026-05-21", "solicitante": "DANIELLA COSTA", "telefone": "", "centroCusto": "A3310008", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26287866", "area": "T-07B-18B", "texto": "T-07B-18B serviço de pintura", "dataSolicitacao": "2026-05-15", "solicitante": "MARCOS VINICIUS NEVES OLIVEIRA", "telefone": "", "centroCusto": "A3312002", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26274112", "area": "T-06A-06X", "texto": "T-06A-06X serviço de pintura", "dataSolicitacao": "2026-05-05", "solicitante": "MARCOS VINICIUS NEVES OLIVEIRA", "telefone": "", "centroCusto": "A3312002", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26260099", "area": "C-09C-24X", "texto": "númerar cavalete triplo", "dataSolicitacao": "2026-04-24", "solicitante": "Elde Paiva Do Nascimento", "telefone": "", "centroCusto": "não identificado", "responsavel": "RICHARD", "dataVisita": "", "status": "Aberta"}, {"numero": "26275670", "area": "T-07B-22A", "texto": "PINTURA DE TAG NO COSTADO", "dataSolicitacao": "2026-05-06", "solicitante": "ARGEL COSTA", "telefone": "", "centroCusto": "A3310020", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26277122", "area": "T-06B-06X", "texto": "pintar plataforma para acesso ao piso", "dataSolicitacao": "2026-05-07", "solicitante": "DENNY SANTOS", "telefone": "", "centroCusto": "A3312002", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26275622", "area": "T-07C-01E", "texto": "PINTURA DE TAG NA BV DO TANQUE", "dataSolicitacao": "2026-05-06", "solicitante": "ARGEL COSTA", "telefone": "", "centroCusto": "A3310020", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26275666", "area": "T-07C-13D", "texto": "PINTURA DE TAG NA BV DO TANQUE", "dataSolicitacao": "2026-05-06", "solicitante": "ARGEL COSTA", "telefone": "", "centroCusto": "A3310020", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26178055", "area": "E-01A-01X", "texto": "PINTURA PAINEL DE CAIXAS EBTV", "dataSolicitacao": "2026-02-23", "solicitante": "LEONARDO FERREIRA", "telefone": "", "centroCusto": "A3303016", "responsavel": "LUCAS", "dataVisita": "", "status": "Aberta"}, {"numero": "26273135", "area": "SE-34E-1", "texto": "SE-34E-1 - PINTAR PIPE RACK DE CABOS", "dataSolicitacao": "2026-05-05", "solicitante": "LUCIANO MONTEIRO FERREIRA", "telefone": "", "centroCusto": "A3309008", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26191292", "area": "C-49D-03X", "texto": "RECUPERAR PINTURA PROTEÇÕES CARRO TENSOR", "dataSolicitacao": "2026-03-04", "solicitante": "RENAN MENEZES", "telefone": "", "centroCusto": "não identificado", "responsavel": "LUCAS", "dataVisita": "", "status": "Aberta"}, {"numero": "26134540", "area": "F-49B-06A", "texto": "PINTURA DAS PROTEÇÕES DA BOMBA", "dataSolicitacao": "2026-01-21", "solicitante": "JHONATAN GUEDELHA", "telefone": "", "centroCusto": "A3303015", "responsavel": "LUCAS", "dataVisita": "", "status": "Aberta"}, {"numero": "26210881", "area": "F-49A-01A", "texto": "RECUPERAR PINTURA DA PROTEÇÃO DAS POLIAS", "dataSolicitacao": "2026-03-18", "solicitante": "MARCIO JOSE", "telefone": "", "centroCusto": "não identificado", "responsavel": "LUCAS", "dataVisita": "", "status": "Aberta"}, {"numero": "26264486", "area": "PR-13C-01X", "texto": "PINTURA DE CAÇAMBA DE RESÍDUO", "dataSolicitacao": "2026-04-28", "solicitante": "NAYARA ABREU", "telefone": "", "centroCusto": "A3311008", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26251103", "area": "TR-49C-07", "texto": "RECUP PINTURA PROTEÇÃO ESCADAS ACESSO", "dataSolicitacao": "2026-04-17", "solicitante": "RENAN MENEZES", "telefone": "", "centroCusto": "não identificado", "responsavel": "LUCAS", "dataVisita": "", "status": "Aberta"}, {"numero": "26191258", "area": "T-49A-07A", "texto": "RECUPERAR PINTURA DO VASO T-49A-07A", "dataSolicitacao": "2026-03-04", "solicitante": "RENAN MENEZES", "telefone": "", "centroCusto": "não identificado", "responsavel": "LUCAS", "dataVisita": "", "status": "Aberta"}, {"numero": "26320551", "area": "PR-28A-01X", "texto": "REALIZAR PINTURA DE DISPOSITIVO", "dataSolicitacao": "2026-06-10", "solicitante": "JOSÉ LUCAS MARQUES", "telefone": "", "centroCusto": "A3310018", "responsavel": "JOÃO", "dataVisita": "", "status": "Concluída"}, {"numero": "26322739", "area": "C-34E-04", "texto": "PINTAR O KAMBAM DA C-34E-04", "dataSolicitacao": "2026-06-11", "solicitante": "LARISSA SANTOS", "telefone": "", "centroCusto": "Não identificado", "responsavel": "RICHARD", "dataVisita": "", "status": "Aberta"}, {"numero": "26320985", "area": "T-34E-08", "texto": "PITURA E REVITALIZAÇÃO DA ESCADA", "dataSolicitacao": "2026-06-10", "solicitante": "FABRICIO", "telefone": "", "centroCusto": "A3311048", "responsavel": "JOÃO", "dataVisita": "", "status": "Concluída"}, {"numero": "26324926", "area": "F-49B-09A", "texto": "RECUPERAR PINTURA PROTEÇÃO POLIAS", "dataSolicitacao": "2026-06-13", "solicitante": "MARCIO JOSE", "telefone": "", "centroCusto": "Não identificado", "responsavel": "RICHARD", "dataVisita": "", "status": "Aberta"}, {"numero": "26324823", "area": "TR-020-03", "texto": "REVITALIZAR PINTURA PORTÕES DA TORRE 03", "dataSolicitacao": "2026-06-13", "solicitante": "MARCIO JOSE", "telefone": "", "centroCusto": "A3303014", "responsavel": "RICHARD", "dataVisita": "", "status": "Aberta"}, {"numero": "26324889", "area": "F-49A-01C", "texto": "RECUPERAR PINTURA PROTEÇÃO POLIAS", "dataSolicitacao": "2026-06-13", "solicitante": "MARCIO JOSE", "telefone": "", "centroCusto": "Não identificado", "responsavel": "RICHARD", "dataVisita": "", "status": "Aberta"}, {"numero": "26312646", "area": "PR-18C-01X", "texto": "pintura sala de DDS", "dataSolicitacao": "2026-06-03", "solicitante": "NAYRA RAFAELA", "telefone": "", "centroCusto": "A3310015", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26329839", "area": "E-14C-01A", "texto": "PINTURA DE PEDESTAIS E-14C-01A", "dataSolicitacao": "2026-06-17", "solicitante": "LUCIMAURO RA", "telefone": "", "centroCusto": "A3301012", "responsavel": "JOÃO", "dataVisita": "", "status": "Concluída"}, {"numero": "26333020", "area": "PR-07B-01X", "texto": "Pintura de coletores", "dataSolicitacao": "2026-06-19", "solicitante": "Ademir  Ribeiro", "telefone": "", "centroCusto": "A3311026", "responsavel": "JOÃO", "dataVisita": "", "status": "Concluída"}, {"numero": "26341397", "area": "P-14A-17A", "texto": "Pintura de guarda-corpo DESMI 14A", "dataSolicitacao": "2026-06-26", "solicitante": "TEODORICO", "telefone": "", "centroCusto": "A3301014", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26303506", "area": "T-06C-03X", "texto": "T-06C-03X fazer pintura de dispositivo", "dataSolicitacao": "2026-05-27", "solicitante": "MARCOS OLIVEIRA", "telefone": "", "centroCusto": "A3312010", "responsavel": "LUCAS", "dataVisita": "", "status": "Concluída"}, {"numero": "26303643", "area": "WC-57A-02", "texto": "Pintura no Banheiro Femenino", "dataSolicitacao": "2026-05-27", "solicitante": "DEIZIANE SILVA", "telefone": "", "centroCusto": "A3301014", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26311261", "area": "ER-03C-25", "texto": "Solicitação pintura paineis área 03C", "dataSolicitacao": "2026-06-02", "solicitante": "ULISSES COURBASSIER", "telefone": "", "centroCusto": "não identificado", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26319749", "area": "PR-73A-01X", "texto": "SOLICITAÇÃO DE PINTURA DE ELETRODUTO", "dataSolicitacao": "2026-06-09", "solicitante": "JAQUELINE PINHO", "telefone": "", "centroCusto": "A4200011", "responsavel": "JOÃO", "dataVisita": "", "status": "Concluída"}, {"numero": "26320771", "area": "HYAL", "texto": "SOLIC. PINTURA CONTAINER AUTOMAÇÃO 28D", "dataSolicitacao": "2026-06-10", "solicitante": "CHARLLE SILVA", "telefone": "", "centroCusto": "A3310008", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26341255", "area": "E-14C-03B", "texto": "Pintura da plataforma ALSTOM B", "dataSolicitacao": "2026-06-26", "solicitante": "TEODORICO", "telefone": "", "centroCusto": "HA-1267002-20", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26291772", "area": "PR-03E-01X", "texto": "PINTURA SC-03E-01", "dataSolicitacao": "2026-05-19", "solicitante": "DANIELLA COSTA", "telefone": "", "centroCusto": "A3310008", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26293457", "area": "WC-72A-08", "texto": "PINTURA DE BANCOS E MESAS VESTIÁRIOS 72A", "dataSolicitacao": "2026-05-20", "solicitante": "RAFAELA", "telefone": "", "centroCusto": "A3314028", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26359013", "area": "ER-03C-25", "texto": "Realizar pintura remotas das torres 03C", "dataSolicitacao": "2026-07-10", "solicitante": "ÉRICO", "telefone": "", "centroCusto": "A3310008", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26359026", "area": "ER-03C-26", "texto": "Realizar pintura da remota ER-03C-26", "dataSolicitacao": "2026-07-10", "solicitante": "ÉRICO", "telefone": "", "centroCusto": "A3314008", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26359046", "area": "ER-03C-27", "texto": "Realizar pintura da remota ER-03C-27", "dataSolicitacao": "2026-07-10", "solicitante": "ÉRICO", "telefone": "", "centroCusto": "A3314008", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26291555", "area": "T-07B-18B", "texto": "PINTURA DA CAÇAMBA DE REJEITO", "dataSolicitacao": "2026-05-19", "solicitante": "FRANCISCO BITENCOURT", "telefone": "", "centroCusto": "A3312008", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26289982", "area": "PR-05A-01X", "texto": "SOLIC.PINT.SUPORT.IÇAMENT.TELAS", "dataSolicitacao": "2026-05-18", "solicitante": "ELIAS REZENDE DA PIEDADE DA PIEDADE", "telefone": "", "centroCusto": "A3311031", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26290062", "area": "PR-28D-01X", "texto": "SOLIC.PINT.INTERN.EXTERN.PR-28D.MONTISOL", "dataSolicitacao": "2026-05-18", "solicitante": "ELIAS REZENDE DA PIEDADE DA PIEDADE", "telefone": "", "centroCusto": "A3311031", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26290593", "area": "PR-34E-003", "texto": "PINTURA DO PISO DE UMA SALA NO FFP", "dataSolicitacao": "2026-05-18", "solicitante": "FABRICIO SILVA", "telefone": "", "centroCusto": "A3311048", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26324242", "area": "P-88D-01A", "texto": "REALIZAR PINTURA PROTEÇÃO P-88A-01A", "dataSolicitacao": "2026-06-13", "solicitante": "DARCIANE TOC", "telefone": "", "centroCusto": "Não identificado", "responsavel": "RICHARD", "dataVisita": "", "status": "Concluída"}, {"numero": "26324248", "area": "P-88D-01B", "texto": "REALIZAR PINTURA PROTEÇÃO P-88A-01B", "dataSolicitacao": "2026-06-13", "solicitante": "DARCIANE TOC", "telefone": "", "centroCusto": "Não identificado", "responsavel": "RICHARD", "dataVisita": "", "status": "Concluída"}, {"numero": "26337170", "area": "C-020-04A", "texto": "REVITALIZA PINTURA CONTRA-PESO C-020-04A", "dataSolicitacao": "2026-06-23", "solicitante": "Welliton Ferreira", "telefone": "", "centroCusto": "Não identificado", "responsavel": "RICHARD", "dataVisita": "", "status": "Concluída"}, {"numero": "26337215", "area": "C-020-04B", "texto": "REVITALIZA PINTURA CONTRA-PESO C-020-04B", "dataSolicitacao": "2026-06-23", "solicitante": "Welliton Ferreira", "telefone": "", "centroCusto": "Não identificado", "responsavel": "RICHARD", "dataVisita": "", "status": "Concluída"}, {"numero": "26337218", "area": "C-020-06A", "texto": "REVITALIZA PINTURA CONTRA-PESO C-020-06A", "dataSolicitacao": "2026-06-23", "solicitante": "Welliton Ferreira", "telefone": "", "centroCusto": "Não identificado", "responsavel": "RICHARD", "dataVisita": "", "status": "Concluída"}, {"numero": "26337172", "area": "C-020-06B", "texto": "REVITALIZA PINTURA CONTRA-PESO C-020-06B", "dataSolicitacao": "2026-06-23", "solicitante": "Welliton Ferreira", "telefone": "", "centroCusto": "Não identificado", "responsavel": "RICHARD", "dataVisita": "", "status": "Concluída"}, {"numero": "26217548", "area": "ER-05A-10", "texto": "SOLICITAÇÃO PINTURA SC-05A01", "dataSolicitacao": "2026-03-23", "solicitante": "LORRANY CARVALHO", "telefone": "", "centroCusto": "A3310008", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26265367", "area": "PR-09D-03X", "texto": "PINTURAS EM CAÇAMBAR DE REFRATARIO", "dataSolicitacao": "2026-04-28", "solicitante": "VEREDIANO MATIAS GOMES", "telefone": "", "centroCusto": "A3310031", "responsavel": "LUCAS", "dataVisita": "", "status": "Concluída"}, {"numero": "26275663", "area": "T-07D-01F", "texto": "PINTURA DE TAG NA BV DO TANQUE", "dataSolicitacao": "2026-05-06", "solicitante": "ARGEL COSTA", "telefone": "", "centroCusto": "A3310020", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26275664", "area": "T-07C-07E", "texto": "PINTURA DE TAG NA BV DO TANQUE", "dataSolicitacao": "2026-05-06", "solicitante": "ARGEL COSTA", "telefone": "", "centroCusto": "A3310020", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26276552", "area": "PR-05A-01X", "texto": "SERVIÇO DE PINTURA", "dataSolicitacao": "2026-05-07", "solicitante": "JAQUELINE CRUZ MADEIRO OLIVEIRA", "telefone": "", "centroCusto": "A3311014", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26282430", "area": "T-06C-02X", "texto": "Realizar pintura de proteção acoplamento", "dataSolicitacao": "2026-05-12", "solicitante": "MARCOS VINICIUS NEVES OLIVEIRA", "telefone": "", "centroCusto": "não identificado", "responsavel": "RICHARD", "dataVisita": "", "status": "Concluída"}, {"numero": "26285719", "area": "PR-71A-01X", "texto": "PINTURA DA PRATELEIRA DA OFICINA", "dataSolicitacao": "2026-05-14", "solicitante": "ICARO", "telefone": "", "centroCusto": "A3311100", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26290696", "area": "P-09D-03A", "texto": "PINTURA DA PLATAFORMA P-09D-03A", "dataSolicitacao": "2026-05-18", "solicitante": "LEANDRO MENDES", "telefone": "", "centroCusto": "A3310023", "responsavel": "RÔMULO", "dataVisita": "", "status": "Concluída"}, {"numero": "26140973", "area": "PR-97A-03B", "texto": "PRAÇA DE RESÍDUO RESTAURANTE EXPANSÃO.", "dataSolicitacao": "2026-01-26", "solicitante": "ERASMO PINTO", "telefone": "", "centroCusto": "A3306003", "responsavel": "RICHARD", "dataVisita": "", "status": "Concluída"}, {"numero": "26279479", "area": "C-020-04A", "texto": "REVITALIZA PINTURA CONTRA-PESO C-020-04A", "dataSolicitacao": "2026-05-09", "solicitante": "Welliton Do Carmo Ferreira", "telefone": "", "centroCusto": "não identificado", "responsavel": "JOÃO", "dataVisita": "", "status": "Concluída"}, {"numero": "26290033", "area": "SE-07D-2", "texto": "SE-07D-2 - PINTAR ESCADA DE ACESSO", "dataSolicitacao": "2026-05-18", "solicitante": "ROSE KELLY DIAS", "telefone": "", "centroCusto": "A3309008", "responsavel": "RICHARD", "dataVisita": "", "status": "Concluída"}, {"numero": "26295726", "area": "T-82C-05X", "texto": "PV-PINTURA DA PASSARELA DO CLARIFICADOR", "dataSolicitacao": "2026-05-21", "solicitante": "VICTOR MACIEL", "telefone": "", "centroCusto": "A3302023", "responsavel": "RICHARD", "dataVisita": "", "status": "Concluída"}, {"numero": "26297022", "area": "E-07B-01X", "texto": "DEMARCAÇÃO DE PISO", "dataSolicitacao": "2026-05-22", "solicitante": "FRANCISCO BITENCOURT", "telefone": "", "centroCusto": "A3312002", "responsavel": "RICHARD", "dataVisita": "", "status": "Concluída"}, {"numero": "26305404", "area": "RUA N", "texto": "Pintura Pipe Reck Rua N", "dataSolicitacao": "2026-05-28", "solicitante": "ADEMIR DE SANTANA RIBEIRO", "telefone": "", "centroCusto": "A3311059", "responsavel": "RICHARD", "dataVisita": "", "status": "Concluída"}, {"numero": "26317700", "area": "PR-71A-01X", "texto": "Pintura da Parede dos box de Solda", "dataSolicitacao": "2026-06-08", "solicitante": "INGRID DIAS SEABRA", "telefone": "", "centroCusto": "A3310012", "responsavel": "JOÃO", "dataVisita": "", "status": "Concluída"}, {"numero": "26324290", "area": "P-88A-03X", "texto": "REALIZAR PINTURA PROTEÇÃO P-88A-03X", "dataSolicitacao": "2026-06-13", "solicitante": "DARCIANE TOC", "telefone": "", "centroCusto": "Não identificado", "responsavel": "JOÃO", "dataVisita": "", "status": "Concluída"}, {"numero": "26359066", "area": "ER-03C-29", "texto": "Realizar pintura da remota ER-03C-29", "dataSolicitacao": "2026-07-10", "solicitante": "ÉRICO", "telefone": "", "centroCusto": "A3314008", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26358866", "area": "PR-57A-01", "texto": "PINTURA GERAL DO TURBO GERADOR", "dataSolicitacao": "2026-07-10", "solicitante": "TEODORICO", "telefone": "", "centroCusto": "A3311055", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26357890", "area": "PR-73A-01X", "texto": "PINTURA DA SALA DE CONTROLE 73", "dataSolicitacao": "2026-07-09", "solicitante": "DANIELLA", "telefone": "", "centroCusto": "A3310008", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26357544", "area": "E-14C-03B", "texto": "PINTURA TAMPAS DO TROCADOR TG 02", "dataSolicitacao": "2026-07-09", "solicitante": "TEODORICO", "telefone": "", "centroCusto": "HA-I246505-20-01", "responsavel": "RICHARD", "dataVisita": "", "status": "Concluída"}, {"numero": "26296932", "area": "PR-34E-04", "texto": "pintura  dos rack da oficina mp 1,2,3", "dataSolicitacao": "2026-05-22", "solicitante": "JOSIEL SILVA", "telefone": "", "centroCusto": "não identificado", "responsavel": "RICHARD", "dataVisita": "", "status": "Aberta"}, {"numero": "26356131", "area": "E-14X-01B", "texto": "CALD NR-13 C", "dataSolicitacao": "2026-07-08", "solicitante": "THACYLA SOUZA", "telefone": "", "centroCusto": "Não identificado", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26355988", "area": "T-07D-23X", "texto": "T-07D-23X realizar pintura", "dataSolicitacao": "2026-07-08", "solicitante": "Marcos Vinicius", "telefone": "", "centroCusto": "A3312008", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26273429", "area": "T-06C-11X", "texto": "PINTURA", "dataSolicitacao": "2026-05-05", "solicitante": "ANDRE LUIS OLIVEIRA DA CONCEICAO", "telefone": "", "centroCusto": "não identificado", "responsavel": "RICHARD", "dataVisita": "", "status": "Aberta"}, {"numero": "26359050", "area": "ER-03C-28", "texto": "Realizar pintura da remota ER-03C-28", "dataSolicitacao": "2026-07-10", "solicitante": "ÉRICO", "telefone": "", "centroCusto": "A3314008", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26344344", "area": "SE-07C-1", "texto": "REVITALIZAÇÃO DE PINTURA INTERNA NA SALA", "dataSolicitacao": "2026-06-29", "solicitante": "LUCIANO", "telefone": "", "centroCusto": "A3309008", "responsavel": "JOÃO", "dataVisita": "", "status": "Concluída"}, {"numero": "26344347", "area": "SE-07C-1", "texto": "Recuperação e Revitalização das grades d", "dataSolicitacao": "2026-06-29", "solicitante": "LUCIANO", "telefone": "", "centroCusto": "A3309008", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26341445", "area": "E-14D-11C", "texto": "Pintura da plataforma torre de resfriame", "dataSolicitacao": "2026-06-26", "solicitante": "TEODORICO", "telefone": "", "centroCusto": "A3301014", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26328435", "area": "HV-82C-005", "texto": "#PINTURA NA BASE DA COMPORTA HV-82C-005", "dataSolicitacao": "2026-06-16", "solicitante": "ROBERTO SILVA", "telefone": "", "centroCusto": "Não identificado", "responsavel": "RICHARD", "dataVisita": "", "status": "Aberta"}, {"numero": "26328454", "area": "HV-82C-13B", "texto": "#PINTURA NA BASE DA COMPORTA HV-82C-13B", "dataSolicitacao": "2026-06-16", "solicitante": "ROBERTO SILVA", "telefone": "", "centroCusto": "Não identificado", "responsavel": "RICHARD", "dataVisita": "", "status": "Aberta"}, {"numero": "26328354", "area": "E-14A-17B", "texto": "#PDE CALD NR-13 C", "dataSolicitacao": "2026-06-16", "solicitante": "THACYLA SOUZA", "telefone": "", "centroCusto": "Não identificado", "responsavel": "JOÃO", "dataVisita": "2026-08-17", "status": "Aberta"}, {"numero": "26328302", "area": "E-57A-02X", "texto": "REALIZAR PINTURA CONTRA OXIDAÇÃO DA GRAD", "dataSolicitacao": "2026-06-16", "solicitante": "THACYLA SOUZA", "telefone": "", "centroCusto": "Não identificado", "responsavel": "JOÃO", "dataVisita": "2026-08-17", "status": "Aberta"}, {"numero": "26328330", "area": "E-57A-02X", "texto": "REALIZAR PINRURA ESCADA MARINHEIRO  LADO", "dataSolicitacao": "2026-06-16", "solicitante": "THACYLA SOUZA", "telefone": "", "centroCusto": "Não identificado", "responsavel": "JOÃO", "dataVisita": "2026-08-17", "status": "Aberta"}, {"numero": "26328326", "area": "E-57A-02X", "texto": "REALIZAR PINTURA CONTRA CORROSÃO NA  VIG", "dataSolicitacao": "2026-06-16", "solicitante": "THACYLA SOUZA", "telefone": "", "centroCusto": "Não identificado", "responsavel": "JOÃO", "dataVisita": "2026-08-17", "status": "Aberta"}, {"numero": "26328324", "area": "E-57A-02X", "texto": "REALIZAR PINTURA CONTRA OXIDAÇÃO DA PLAT", "dataSolicitacao": "2026-06-16", "solicitante": "THACYLA SOUZA", "telefone": "", "centroCusto": "Não identificado", "responsavel": "JOÃO", "dataVisita": "2026-08-17", "status": "Aberta"}, {"numero": "26328150", "area": "P-06C-14X", "texto": "Realizar pintura da bomba poço", "dataSolicitacao": "2026-06-16", "solicitante": "Marcos Vinicius", "telefone": "", "centroCusto": "Não identificado", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26327207", "area": "TF-07D-02B", "texto": "REVITALIZAÇÃO TRANFORMADOR TF-07D-02B", "dataSolicitacao": "2026-06-15", "solicitante": "LUCIANO FERREIRA", "telefone": "", "centroCusto": "Não identificado", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26359485", "area": "PR-28A-01X", "texto": "RLZ. PINT. DE SINALIZAÇÃO SEG. SALA EXT.", "dataSolicitacao": "2026-07-11", "solicitante": "ALEX LIMA", "telefone": "", "centroCusto": "A3310005", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26324080", "area": "PR-34E-01", "texto": "PINTURA DA SALA GERENCIAL DO FILTRO PREN", "dataSolicitacao": "2026-06-12", "solicitante": "HELAINE SILVA", "telefone": "", "centroCusto": "A3311048", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26362049", "area": "PR-34E-01", "texto": "solicito pintura na sala do kanban", "dataSolicitacao": "2026-07-13", "solicitante": "helaine silva", "telefone": "", "centroCusto": "A3313020", "responsavel": "JOÃO", "dataVisita": "2026-07-23", "status": "Aberta"}, {"numero": "26208908", "area": "E-03D-20D", "texto": "corrosão costado", "dataSolicitacao": "2026-03-17", "solicitante": "CARLOS QUEIROZ", "telefone": "", "centroCusto": "A3314001", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26347348", "area": "PR-72A-02X", "texto": "PINT. PARTE DA PLACA FORRO REST. CENTRAL", "dataSolicitacao": "2026-07-01", "solicitante": "ERASMO", "telefone": "", "centroCusto": "A1320002", "responsavel": "RICHARD", "dataVisita": "", "status": "Aberta"}, {"numero": "26188283", "area": "PR-34E-04", "texto": "Fazer a pintura do prédio da manutenção", "dataSolicitacao": "2026-03-02", "solicitante": "RHUD RODRIGUES", "telefone": "", "centroCusto": "A3311048", "responsavel": "RICHARD", "dataVisita": "", "status": "Aberta"}, {"numero": "26370624", "area": "E-14C-03B", "texto": "Pintura da plataforma ALSTOM B", "dataSolicitacao": "2026-07-20", "solicitante": "TEODORICO", "telefone": "", "centroCusto": "A3301012", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26371676", "area": "PR-07C-02X", "texto": "PINTURA GERAL", "dataSolicitacao": "2026-07-21", "solicitante": "Francisco Bitencourt", "telefone": "", "centroCusto": "A3312008", "responsavel": "JOÃO", "dataVisita": "2026-07-22", "status": "Aberta"}, {"numero": "26371723", "area": "PR-72A-01X", "texto": "manutenção de pintura da sala vip", "dataSolicitacao": "2026-07-21", "solicitante": "Krishna Mikaelly Fonseca", "telefone": "", "centroCusto": "A3306003", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26375397", "area": "P-04A-04X", "texto": "PINTURA B-2692 BOMBA POÇO 4ANL-VN", "dataSolicitacao": "2026-07-23", "solicitante": "Icaro Oliveira", "telefone": "", "centroCusto": "A3111002", "responsavel": "RICHARD", "dataVisita": "", "status": "Concluída"}, {"numero": "26363138", "area": "E-49A-07X", "texto": "RECUPERAR PINTURA EXTERNA DO FILTRO", "dataSolicitacao": "2026-07-14", "solicitante": "MARCIO JOSE", "telefone": "", "centroCusto": "A3303023", "responsavel": "RICHARD", "dataVisita": "", "status": "Aberta"}, {"numero": "26368853", "area": "C-87A-01X", "texto": "REVITALIZAR PINTURA TORRE DO CONTRA PESO", "dataSolicitacao": "2026-07-18", "solicitante": "DARCIANE SOUZA", "telefone": "", "centroCusto": "A3303023", "responsavel": "RICHARD", "dataVisita": "", "status": "Aberta"}, {"numero": "26382153", "area": "T-03D-05E", "texto": "costado coroido", "dataSolicitacao": "2026-07-29", "solicitante": "CARLOS QUEIROZ", "telefone": "", "centroCusto": "A3314001", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26382071", "area": "T-03E-05A", "texto": "costado coroido", "dataSolicitacao": "2026-07-29", "solicitante": "CARLOS QUEIROZ", "telefone": "", "centroCusto": "A3314001", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26381953", "area": "PR-73A-01X", "texto": "PINTURA ÁREA 73 GTEC", "dataSolicitacao": "2026-07-29", "solicitante": "KAITY", "telefone": "", "centroCusto": "A3307001", "responsavel": "RÔMULO", "dataVisita": "2026-08-04", "status": "Aberta"}, {"numero": "26364652", "area": "P-48D-02E", "texto": "PINTURA BOMBA VACUO CL-4002/4", "dataSolicitacao": "2026-07-15", "solicitante": "ICARO", "telefone": "", "centroCusto": "Não identificado", "responsavel": "RICHARD", "dataVisita": "", "status": "Concluída"}, {"numero": "26376462", "area": "T-49D-01X", "texto": "REVITALIZAR PINTURA GUARDA CORPO SILO D", "dataSolicitacao": "2026-07-24", "solicitante": "RENAN MENEZES", "telefone": "", "centroCusto": "A3303023", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26376589", "area": "T-03C-07X", "texto": "SOLCIITO PINTURA", "dataSolicitacao": "2026-07-24", "solicitante": "MARCOS COSTA", "telefone": "", "centroCusto": "A3314001", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26377605", "area": "FM-87D-003", "texto": "REVITALIZAR PINTURA GUARDA CORPO FILTRO", "dataSolicitacao": "2026-07-25", "solicitante": "WELLINTON INSPETOR", "telefone": "", "centroCusto": "A3303023", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26379084", "area": "T-06C-10X", "texto": "SERVIÇO DE PINTURA", "dataSolicitacao": "2026-07-27", "solicitante": "Francisco Bitencourt", "telefone": "", "centroCusto": "A3312010", "responsavel": "JOÃO", "dataVisita": "", "status": "Aberta"}, {"numero": "26379085", "area": "T-07C-15E", "texto": "SERVIÇO DE PINTURA", "dataSolicitacao": "2026-07-27", "solicitante": "Francisco Bitencourt", "telefone": "", "centroCusto": "A3312010", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26382104", "area": "E-03C-20B", "texto": "interno corroído", "dataSolicitacao": "2026-07-29", "solicitante": "CARLOS QUEIROZ", "telefone": "", "centroCusto": "A3314001", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26382106", "area": "E-03C-20D", "texto": "interno corroído", "dataSolicitacao": "2026-07-29", "solicitante": "CARLOS QUEIROZ", "telefone": "", "centroCusto": "A3314001", "responsavel": "RÔMULO", "dataVisita": "", "status": "Aberta"}, {"numero": "26399445", "area": "C-03E-01C", "texto": "correia 01 Filtro 11 precisa de pintura", "dataSolicitacao": "2026-08-12", "solicitante": "#VALUE!", "telefone": "", "centroCusto": "", "responsavel": "", "dataVisita": "", "status": "Aberta"}, {"numero": "26398606", "area": "FM-020-002", "texto": "REALIZAR PINTURA PROTEÇOES  FM-020--002", "dataSolicitacao": "2026-08-12", "solicitante": "#VALUE!", "telefone": "", "centroCusto": "", "responsavel": "", "dataVisita": "", "status": "Aberta"}, {"numero": "26398210", "area": "PR-71A-01X", "texto": "Demarcação de extintor de incêndio", "dataSolicitacao": "2026-08-11", "solicitante": "", "telefone": "", "centroCusto": "", "responsavel": "", "dataVisita": "", "status": "Aberta"}, {"numero": "26398073", "area": "FM-87D-002", "texto": "REALIZAR PINTURA PROTEÇOES  FM-87D-002", "dataSolicitacao": "2026-08-11", "solicitante": "", "telefone": "", "centroCusto": "", "responsavel": "", "dataVisita": "", "status": "Aberta"}, {"numero": "26398533", "area": "HYAL-PORT-DSAG-D03C", "texto": "PINTURA DA AREA 03C", "dataSolicitacao": "2026-08-11", "solicitante": "", "telefone": "", "centroCusto": "", "responsavel": "JOÃO", "dataVisita": "2026-08-17", "status": "Aberta"}, {"numero": "26398537", "area": "HYAL-PORT-DSAG-D03D", "texto": "PINTURA DA AREA 03D", "dataSolicitacao": "2026-08-11", "solicitante": "", "telefone": "", "centroCusto": "", "responsavel": "JOÃO", "dataVisita": "2026-08-17", "status": "Aberta"}, {"numero": "26398538", "area": "HYAL-PORT-DSAG-D03E", "texto": "PINTURA DA AREA 03E", "dataSolicitacao": "2026-08-11", "solicitante": "", "telefone": "", "centroCusto": "", "responsavel": "JOÃO", "dataVisita": "2026-08-17", "status": "Aberta"}, {"numero": "26392692", "area": "HYAL-OFCE-MECA", "texto": "Pintura das Bancadas de manutenção OFC", "dataSolicitacao": "2026-08-06", "solicitante": "", "telefone": "", "centroCusto": "", "responsavel": "JOÃO", "dataVisita": "2026-08-13", "status": "Aberta"}, {"numero": "26392691", "area": "HYAL-OFCE-MECA", "texto": "Pintura dos Tornos e Maquinas da OFC", "dataSolicitacao": "2026-08-06", "solicitante": "", "telefone": "", "centroCusto": "", "responsavel": "JOÃO", "dataVisita": "2026-08-13", "status": "Aberta"}, {"numero": "26389836", "area": "CN-87D-003", "texto": "PINTURA PROTEÇÃO SOPRADOR  CALHAS CN-03", "dataSolicitacao": "2026-08-05", "solicitante": "", "telefone": "", "centroCusto": "", "responsavel": "", "dataVisita": "", "status": "Aberta"}, {"numero": "26389873", "area": "E-57C-02X", "texto": "Pintura BV trocador de calor do gerador", "dataSolicitacao": "2026-08-04", "solicitante": "", "telefone": "", "centroCusto": "", "responsavel": "JOSÉ", "dataVisita": "2026-08-13", "status": "Aberta"}, {"numero": "26389487", "area": "P-48D-02B", "texto": "APLICAR TRATAMENTO DE SUPERFÍCIE, PROTEÇ", "dataSolicitacao": "2026-08-04", "solicitante": "", "telefone": "", "centroCusto": "", "responsavel": "JOÃO", "dataVisita": "2026-08-13", "status": "Aberta"}, {"numero": "26388294", "area": "PR-03E-02X", "texto": "Pintura piso e containers do desaguament", "dataSolicitacao": "2026-08-03", "solicitante": "", "telefone": "", "centroCusto": "", "responsavel": "LUCAS", "dataVisita": "2024-08-12", "status": "Aberta"}, {"numero": "26385785", "area": "FM-87D-003", "texto": "REVITALIZAR PINTURA PULMÃO AR FM-87D-003", "dataSolicitacao": "2026-08-01", "solicitante": "", "telefone": "", "centroCusto": "", "responsavel": "", "dataVisita": "", "status": "Aberta"}, {"numero": "26384369", "area": "C-020-04B", "texto": "REVITALIZA PINTURA PROTEÇÃO C-020-04B", "dataSolicitacao": "2026-07-31", "solicitante": "", "telefone": "", "centroCusto": "", "responsavel": "", "dataVisita": "", "status": "Aberta"}, {"numero": "26385645", "area": "CN-87D-003", "texto": "REVITALIZAR PINTURA BERÇO 201 CN-02", "dataSolicitacao": "2026-07-31", "solicitante": "", "telefone": "", "centroCusto": "", "responsavel": "", "dataVisita": "", "status": "Aberta"}, {"numero": "26385531", "area": "B-02B-01A", "texto": "pintura do corrimao da cadeia da calcina", "dataSolicitacao": "2026-07-31", "solicitante": "", "telefone": "", "centroCusto": "", "responsavel": "LUCAS", "dataVisita": "", "status": "Aberta"}, {"numero": "26384264", "area": "FT-04A-02A", "texto": "tratamento e pintura .", "dataSolicitacao": "2026-07-30", "solicitante": "", "telefone": "", "centroCusto": "", "responsavel": "RICHARD", "dataVisita": "", "status": "Aberta"}, {"numero": "26383541", "area": "T-06C-10X", "texto": "SERVIÇO DE PINTURA", "dataSolicitacao": "2026-07-30", "solicitante": "", "telefone": "", "centroCusto": "", "responsavel": "JOÃO", "dataVisita": "2026-08-17", "status": "Aberta"}];
+const INITIAL_ORDENS = [{"numero": "110396744", "area": "UTILIDADES MANUT.", "descricao": "PINTURA TAMPAS PROTEÇÃO TG 02", "emissao": "2026-07-27", "responsavel": "ALEX LIMA"}, {"numero": "108205249", "area": "ESTAÇÃO EFLUENTES", "descricao": "PINTURA DE TAG E CATEGORIA DO TANQUE 14A", "emissao": "2023-08-01", "responsavel": ""}, {"numero": "109029611", "area": "COMERCIAL", "descricao": "PINTURA TOTAL TORRE CONTRAPESO C87A01X", "emissao": "2024-09-18", "responsavel": ""}, {"numero": "109053343", "area": "GEMAN VERMELHA", "descricao": "pintar proteções laterais do contrapeso", "emissao": "2024-09-30", "responsavel": ""}, {"numero": "109053347", "area": "GEMAN VERMELHA", "descricao": "pintar proteções laterais do contrapeso", "emissao": "2024-09-30", "responsavel": "A705573"}, {"numero": "109075528", "area": "COMERCIAL", "descricao": "PINTURA TOTAL TORRE CONTRAPESO C49C03X", "emissao": "2024-10-11", "responsavel": ""}, {"numero": "109081043", "area": "GEMAN BRANCA", "descricao": "PINTURA VASO C realizar a pintura.", "emissao": "2024-10-14", "responsavel": "A705573"}, {"numero": "109081111", "area": "COMERCIAL", "descricao": "PINTURA TOTAL TORRE CONTRAPESO C87A09X", "emissao": "2024-10-14", "responsavel": ""}, {"numero": "109081113", "area": "ESTAÇÃO EFLUENTES", "descricao": "Tratamento Anticorrosivo Estrutura", "emissao": "2024-10-14", "responsavel": "A817043"}, {"numero": "109128466", "area": "GEMAN VERMELHA", "descricao": "PINT E TRAT NA ÁREA DO CONTRA-PESO", "emissao": "2024-11-05", "responsavel": "SERGIO FEIO"}, {"numero": "109129853", "area": "COMERCIAL", "descricao": "PINTURA ACESSO CABINE MOEGA HIDRATO", "emissao": "2024-11-06", "responsavel": "JORDANA"}, {"numero": "109154900", "area": "DESAGUAMENTO MANUT.", "descricao": "PINTAR PROTEÇÃO DA UNIDADE HIDRÁULICA", "emissao": "2024-11-19", "responsavel": "TEODORICO"}, {"numero": "109154904", "area": "DESAGUAMENTO MANUT.", "descricao": "PINTAR PROTEÇÃO DA UNIDADE HIDRÁULICA", "emissao": "2024-11-19", "responsavel": ""}, {"numero": "109154905", "area": "DESAGUAMENTO MANUT.", "descricao": "PINTAR PROTEÇÃO DA UNIDADE HIDRÁULICA", "emissao": "2024-11-19", "responsavel": "A137285"}, {"numero": "109157536", "area": "GEPOR MANUT.", "descricao": "PINTURA TOTAL TORRE CONTRAPESO C-02A-01A", "emissao": "2024-11-21", "responsavel": "A137285"}, {"numero": "109159900", "area": "DESAGUAMENTO MANUT.", "descricao": "PINTAR PROTEÇÃO DA UNIDADE HIDRÁULICA", "emissao": "2024-11-22", "responsavel": "TEODORICO"}, {"numero": "109185591", "area": "COMERCIAL", "descricao": "PINTURA TOTAL TORRE CONTRAPESO C-12A-07X", "emissao": "2024-12-05", "responsavel": "A137285"}, {"numero": "109185593", "area": "COMERCIAL", "descricao": "PINTURA TOTAL TORRE CONTRAPESO C-12A-01X", "emissao": "2024-12-05", "responsavel": "143596"}, {"numero": "109196154", "area": "DESAGUAMENTO MANUT.", "descricao": "Pintura guarda corpo 3C escada principal", "emissao": "2024-12-10", "responsavel": "A824853"}, {"numero": "109298658", "area": "FILTRO PRENSA", "descricao": "PINTURA DO CONTEINER AO LADO DA 02B", "emissao": "2025-02-03", "responsavel": "ADINAILDO"}, {"numero": "109298662", "area": "ESTAÇÃO EFLUENTES", "descricao": "PV PINTURA DE TAG T-82C-15A", "emissao": "2025-02-03", "responsavel": ""}, {"numero": "109377577", "area": "GEMAN VERMELHA", "descricao": "REALIZAR TRATAMENTO DE SUPERFICIE E PINT", "emissao": "2025-03-11", "responsavel": "127874"}, {"numero": "109377613", "area": "GEMAN BRANCA", "descricao": "GUARDA CORPO COM CORROSÃO (PINTURA)", "emissao": "2025-03-11", "responsavel": "A223143"}, {"numero": "109406917", "area": "GESTÃO DE CONTRATOS", "descricao": "DEMARCAÇÃO E PINTURA DA PASSARELA", "emissao": "2025-03-26", "responsavel": "127874"}, {"numero": "109460546", "area": "GEMAN VERMELHA", "descricao": "Pintura de guarda corpo", "emissao": "2025-04-22", "responsavel": "GEAN JACOB"}, {"numero": "109487443", "area": "ESTAÇÃO EFLUENTES", "descricao": "PV PINTURA DE TAG DO TANQUE T-82D-015", "emissao": "2025-05-05", "responsavel": "A853062"}, {"numero": "109531339", "area": "COMERCIAL", "descricao": "PINTURA DA SALA ADM NA ÁREA 12", "emissao": "2025-05-28", "responsavel": "A152536"}, {"numero": "109541420", "area": "ESTAÇÃO EFLUENTES", "descricao": "PV TRAT MEC PINTU  CAIXA 18 T-82C-18X", "emissao": "2025-06-02", "responsavel": "A152536"}, {"numero": "109541422", "area": "GESTÃO DE CONTRATOS", "descricao": "PINTURA DA PAREDE", "emissao": "2025-06-02", "responsavel": ""}, {"numero": "109541424", "area": "GEMAN BRANCA", "descricao": "Realizar pintura interna e externa", "emissao": "2025-06-02", "responsavel": ""}, {"numero": "109541425", "area": "GESTÃO DE CONTRATOS", "descricao": "FAZER PINTURA INTERNA DO REST. PORTO", "emissao": "2025-06-02", "responsavel": ""}, {"numero": "109541472", "area": "CLARIFICAÇÃO", "descricao": "SOLICITO SERVIÇO DE PINTURA E REVITALIZA", "emissao": "2025-06-02", "responsavel": ""}, {"numero": "109541473", "area": "GESTÃO DE CONTRATOS", "descricao": "PINTURA ÁREA G PISO INTERNO ALMOXARIFDO", "emissao": "2025-06-02", "responsavel": ""}, {"numero": "109562909", "area": "GEMAN BRANCA", "descricao": "Orçamento para Pintura de Prime", "emissao": "2025-06-10", "responsavel": ""}, {"numero": "109612366", "area": "CLARIFICAÇÃO", "descricao": "SOLIC.DEMARCA.A5ACLARIFICAÇÃO", "emissao": "2025-07-07", "responsavel": "ERASMO"}, {"numero": "109871440", "area": "CLARIFICAÇÃO", "descricao": "SOLIC.PINT.MALÃO DA SAL.28C.CLARIF", "emissao": "2025-11-17", "responsavel": ""}, {"numero": "109718598", "area": "UTILIDADES MANUT.", "descricao": "Pintura de grade L. Norte - E-57A-02X", "emissao": "2025-09-01", "responsavel": "LUZINETE"}, {"numero": "109732180", "area": "GEMAN VERMELHA", "descricao": "T-04C-01A PINTURA DA BACIA DO TAP", "emissao": "2025-09-08", "responsavel": "A223143"}, {"numero": "110255931", "area": "DESAGUAMENTO OPER.", "descricao": "PINTURA E DEMARCAÇÕES DE PISO", "emissao": "2026-05-18", "responsavel": "A223143"}, {"numero": "109788901", "area": "ESTAÇÃO EFLUENTES", "descricao": "PV TRAT MEC E PINTURA DO TANQUE T82C-09B", "emissao": "2025-10-06", "responsavel": "A223143"}, {"numero": "109792740", "area": "ESTAÇÃO EFLUENTES", "descricao": "PV PINTURA EXT TANQUE DE FIBRA T-82C-10A", "emissao": "2025-10-08", "responsavel": "A223143"}, {"numero": "109830638", "area": "DESAGUAMENTO MANUT.", "descricao": "ESCADA (CORRIMÃO) PINTURA DANIFICADA", "emissao": "2025-10-27", "responsavel": ""}, {"numero": "109830639", "area": "DESAGUAMENTO MANUT.", "descricao": "teto do tanque com corrosaão", "emissao": "2025-10-27", "responsavel": ""}, {"numero": "109830641", "area": "DESAGUAMENTO MANUT.", "descricao": "tanque com costado corroído", "emissao": "2025-10-27", "responsavel": ""}, {"numero": "109708735", "area": "GEMAN BRANCA", "descricao": "Pintura geral da baia da caldeiraira", "emissao": "2025-08-27", "responsavel": ""}, {"numero": "109897604", "area": "GESTÃO DE CONTRATOS", "descricao": "Adequação das baias dos trafos da 97:", "emissao": "2025-11-28", "responsavel": "217191"}, {"numero": "109897605", "area": "GESTÃO DE CONTRATOS", "descricao": "Pitura de baia de transformador", "emissao": "2025-11-28", "responsavel": "A223143"}, {"numero": "109897657", "area": "GEMAN BRANCA", "descricao": "REALIZAR PINTURA ANTI-CORROSIVA", "emissao": "2025-11-28", "responsavel": "A223143"}, {"numero": "109902698", "area": "GESTÃO DE CONTRATOS", "descricao": "PINTURA DA SALA DE TI, A73, SEGUNDO PAV.", "emissao": "2025-12-01", "responsavel": "MAURO TAVARE"}, {"numero": "109902704", "area": "GESTÃO DE CONTRATOS", "descricao": "Adequação das baias dos trafos da 97:", "emissao": "2025-12-01", "responsavel": "A850278"}, {"numero": "109916498", "area": "GEMAN BRANCA", "descricao": "Pintura da ferramentaria da área 48D", "emissao": "2025-12-08", "responsavel": "LORENA"}, {"numero": "109916504", "area": "GEMAN BRANCA", "descricao": "P-07C-01B serviço de pintura", "emissao": "2025-12-08", "responsavel": "CAIO LUZ"}, {"numero": "109916506", "area": "GEMAN BRANCA", "descricao": "Pintura da estação de EBTV HE's 4 e 5", "emissao": "2025-12-08", "responsavel": "A223807"}, {"numero": "109916528", "area": "GEMAN BRANCA", "descricao": "Serviço de pintura área 7C", "emissao": "2025-12-08", "responsavel": "A223807"}, {"numero": "109916531", "area": "GEMAN BRANCA", "descricao": "P-07C-01A serviço de pintura", "emissao": "2025-12-08", "responsavel": "ARGEL"}, {"numero": "109916538", "area": "GEMAN BRANCA", "descricao": "Pintura da ferramentaria do topo", "emissao": "2025-12-08", "responsavel": "MARCIO JOSE"}, {"numero": "109916541", "area": "GEMAN BRANCA", "descricao": "Pintura da estação de EBTV HE's 6 e 7", "emissao": "2025-12-08", "responsavel": "LIZIANE"}, {"numero": "109916545", "area": "GEMAN BRANCA", "descricao": "Serviço de pintura na estação de EBTV", "emissao": "2025-12-08", "responsavel": "ADEMIR"}, {"numero": "109916546", "area": "GEMAN BRANCA", "descricao": "Serviço de pintura na estação de EBTV", "emissao": "2025-12-08", "responsavel": "A850278"}, {"numero": "109921506", "area": "GESTÃO DE CONTRATOS", "descricao": "Pintura de parede", "emissao": "2025-12-10", "responsavel": ""}, {"numero": "109921570", "area": "ESTAÇÃO EFLUENTES", "descricao": "Pintura de tubulação atras da área 38", "emissao": "2025-12-10", "responsavel": ""}, {"numero": "109921573", "area": "UTILIDADES MANUT.", "descricao": "PINTURA DE BASE DE SUSTENTAÇÃ F-57D-11X", "emissao": "2025-12-10", "responsavel": "A151531"}, {"numero": "109775985", "area": "GEMAN BRANCA", "descricao": "REALIZAR PINTURA NA ESCADA DE ACESSO", "emissao": "2025-09-29", "responsavel": ""}, {"numero": "109930865", "area": "COMERCIAL", "descricao": "REALIZAR PINTURA DO VASO", "emissao": "2025-12-15", "responsavel": "JACQUELINE"}, {"numero": "109930869", "area": "COMERCIAL", "descricao": "REALIZAR PINTURA DO VASO", "emissao": "2025-12-15", "responsavel": "A135746"}, {"numero": "109930872", "area": "COMERCIAL", "descricao": "REALIZAR PINTURA DO VASO", "emissao": "2025-12-15", "responsavel": ""}, {"numero": "109923007", "area": "GEMAN BRANCA", "descricao": "REALIZAR PINTURA ANTI-CORROSIVA", "emissao": "2025-12-11", "responsavel": ""}, {"numero": "109930898", "area": "COMERCIAL", "descricao": "REALIZAR PINTURA DO VASO - T-49B-01A", "emissao": "2025-12-15", "responsavel": ""}, {"numero": "109944495", "area": "UTILIDADES MANUT.", "descricao": "PINTAR NUMERAÇÃO DE IDENTIFICAÇÃO", "emissao": "2025-12-22", "responsavel": "MARIO NETO"}, {"numero": "109944532", "area": "GEMAN BRANCA", "descricao": "REALIZAR PINTURA ANTI-CORROSIVA", "emissao": "2025-12-22", "responsavel": "MARIO NETO"}, {"numero": "109944534", "area": "GEMAN BRANCA", "descricao": "REALIZAR PINTURA ANTI-CORROSIVA", "emissao": "2025-12-22", "responsavel": ""}, {"numero": "109944538", "area": "UTILIDADES MANUT.", "descricao": "PINTAR NUMERAÇÃO DE IDENTIFICAÇÃO", "emissao": "2025-12-22", "responsavel": "SALATIEL"}, {"numero": "109955729", "area": "GEMAN BRANCA", "descricao": "PINTURA DE TAG E CATEGORIA DO VASO", "emissao": "2025-12-29", "responsavel": "SALATIEL"}, {"numero": "109955730", "area": "GEMAN BRANCA", "descricao": "PINTURA DE TAG E CATEGORIA DO VASO", "emissao": "2025-12-29", "responsavel": "SALATIEL"}, {"numero": "109955733", "area": "GEMAN BRANCA", "descricao": "PINTURA DE TAG E CATEGORIA DO VASO", "emissao": "2025-12-29", "responsavel": "A223143"}, {"numero": "109955735", "area": "GEMAN BRANCA", "descricao": "PINTURA DE TAG E CATEGORIA DO VASO", "emissao": "2025-12-29", "responsavel": "A223143"}, {"numero": "109955738", "area": "GEMAN BRANCA", "descricao": "PINTURA DE TAG E CATEGORIA DO VASO", "emissao": "2025-12-29", "responsavel": "FELIX"}, {"numero": "109955741", "area": "GEMAN BRANCA", "descricao": "PINTURA DE TAG E CATEGORIA DO VASO", "emissao": "2025-12-29", "responsavel": "A223591"}, {"numero": "109955745", "area": "GEMAN BRANCA", "descricao": "PINTURA DE TAG E CATEGORIA DO VASO", "emissao": "2025-12-29", "responsavel": ""}, {"numero": "109955867", "area": "GEMAN BRANCA", "descricao": "PINTURA DE TAG E CATEGORIA E EXTERNO", "emissao": "2025-12-29", "responsavel": ""}, {"numero": "109955871", "area": "GEMAN BRANCA", "descricao": "PINTURA DE TAG E CATEGORIA DO VASO", "emissao": "2025-12-29", "responsavel": ""}, {"numero": "109955872", "area": "GEMAN BRANCA", "descricao": "PINTURA DE TAG E CATEGORIA DO VASO", "emissao": "2025-12-29", "responsavel": "A223591"}, {"numero": "109955876", "area": "GEMAN BRANCA", "descricao": "PINTURA DE TAG E CATEGORIA DO VASO", "emissao": "2025-12-29", "responsavel": "127874"}, {"numero": "109955879", "area": "GEMAN BRANCA", "descricao": "PINTURA DE TAG E CATEGORIA DO VASO", "emissao": "2025-12-29", "responsavel": "127874"}, {"numero": "109955884", "area": "GEMAN BRANCA", "descricao": "PINTURA DE TAG E CATEGORIA DO VASO", "emissao": "2025-12-29", "responsavel": "127874"}, {"numero": "109955912", "area": "GEMAN BRANCA", "descricao": "PINTURA DE TAG E CATEGORIA DO VASO", "emissao": "2025-12-29", "responsavel": "A223591"}, {"numero": "110242079", "area": "GEMAN BRANCA", "descricao": "REALIZAR PINTURA ANTI-CORROSIVA", "emissao": "2026-05-11", "responsavel": ""}, {"numero": "110245914", "area": "GEMAN BRANCA", "descricao": "PINTURA NOS PONTOS COM CORROSÃO LAUDO", "emissao": "2026-05-13", "responsavel": ""}, {"numero": "110245915", "area": "GEMAN BRANCA", "descricao": "PINTURA NO TAMPO SUPERIOR LAUDO", "emissao": "2026-05-13", "responsavel": ""}, {"numero": "110255933", "area": "GEMAN BRANCA", "descricao": "REALIZAR PINTURA ANTICORROSIVA ESCADA", "emissao": "2026-05-18", "responsavel": "A223143"}, {"numero": "110255916", "area": "COMERCIAL", "descricao": "RECUP PINTURA PROTEÇÃO ESCADAS ACESSO", "emissao": "2026-05-18", "responsavel": ""}, {"numero": "110255918", "area": "COMERCIAL", "descricao": "RECUPERAR PINTURA DA PROTEÇÃO DAS POLIAS", "emissao": "2026-05-18", "responsavel": ""}, {"numero": "110255919", "area": "COMERCIAL", "descricao": "RECUPERAR PINTURA DO VASO T-49A-07A", "emissao": "2026-05-18", "responsavel": "A223143"}, {"numero": "110255920", "area": "COMERCIAL", "descricao": "RECUPERAR PINTURA PROTEÇÕES CARRO TENSOR", "emissao": "2026-05-18", "responsavel": "A223143"}, {"numero": "110255921", "area": "COMERCIAL", "descricao": "PINTURA DAS PROTEÇÕES DO SOPRADOR", "emissao": "2026-05-18", "responsavel": "A223143"}, {"numero": "110255924", "area": "GEMAN VERMELHA", "descricao": "PINTURA DE CAÇAMBA DE RESÍDUO", "emissao": "2026-05-18", "responsavel": "A223143"}, {"numero": "110142049", "area": "GEMAN BRANCA", "descricao": "REALIZAR PINTURA DE TAG E CATEGORIA", "emissao": "2026-03-23", "responsavel": "A223591"}, {"numero": "110012615", "area": "GEMAN BRANCA", "descricao": "Pintura de colunas na área 30AB", "emissao": "2026-01-23", "responsavel": "A223143"}, {"numero": "110301754", "area": "GESTÃO DE CONTRATOS", "descricao": "REMOÇÃO E PINTURA DE PISO LABORATÓRIO", "emissao": "2026-06-08", "responsavel": "A223143"}, {"numero": "110351606", "area": "GESTÃO DE CONTRATOS", "descricao": "PINTURA CALDERARIA CONFORME VISITA", "emissao": "2026-07-04", "responsavel": "A223143"}, {"numero": "110356650", "area": "UTILIDADES MANUT.", "descricao": "Pintura da caldeiraria 57D", "emissao": "2026-07-06", "responsavel": "A223591"}, {"numero": "110142002", "area": "GEMAN BRANCA", "descricao": "TL-07A-08X EFETUAR PINTURA NO PAINEL ELE", "emissao": "2026-03-23", "responsavel": "A223591"}, {"numero": "110142005", "area": "GEMAN BRANCA", "descricao": "Realizar pintura anti-corrosiva", "emissao": "2026-03-23", "responsavel": "A223591"}, {"numero": "110018575", "area": "GEMAN BRANCA", "descricao": "Realizar pintura anti-corrosiva", "emissao": "2026-01-26", "responsavel": "A223143"}, {"numero": "110341656", "area": "ENERGIA", "descricao": "Pintura nos transformadores da SE-10C01", "emissao": "2026-06-29", "responsavel": "A223143"}, {"numero": "109991111", "area": "ESTAÇÃO EFLUENTES", "descricao": "REALIZAR PINTURA DO VASO DE AR INSTRUMEN", "emissao": "2026-01-14", "responsavel": "A223143"}, {"numero": "110012524", "area": "GEMAN BRANCA", "descricao": "FAZER PINTURA NA ESTRUTURA DA PLATAFORMA", "emissao": "2026-01-23", "responsavel": "A223143"}, {"numero": "110012525", "area": "GEMAN BRANCA", "descricao": "FAZER PINTURA NO TANQUE DE FILTRADO", "emissao": "2026-01-23", "responsavel": "A223143"}, {"numero": "110012607", "area": "GEMAN BRANCA", "descricao": "FAZER PINTURA NA ESTRUTURA DA PLATAFORMA", "emissao": "2026-01-23", "responsavel": "A223143"}, {"numero": "110012609", "area": "GEMAN BRANCA", "descricao": "FAZER PINTURA NO TANQUE DE FILTRADO   DA", "emissao": "2026-01-23", "responsavel": "A223143"}, {"numero": "110012611", "area": "GEMAN BRANCA", "descricao": "FAZER PINTURA NO TANQUE DE FILTRADO   DA", "emissao": "2026-01-23", "responsavel": "RODRIGO"}, {"numero": "110012612", "area": "GEMAN BRANCA", "descricao": "FAZER PINTURA NO TANQUE DE FILTRADO   DA", "emissao": "2026-01-23", "responsavel": "A223143"}, {"numero": "110018577", "area": "GEMAN BRANCA", "descricao": "Realizar pintura anti-corrosiva", "emissao": "2026-01-26", "responsavel": "A223143"}, {"numero": "110012618", "area": "UTILIDADES MANUT.", "descricao": "Insp. Estr. - Base", "emissao": "2026-01-23", "responsavel": "A223143"}, {"numero": "110018542", "area": "GEMAN BRANCA", "descricao": "Realizar pintura anti-corrosiva", "emissao": "2026-01-26", "responsavel": "A223143"}, {"numero": "110018574", "area": "GEMAN BRANCA", "descricao": "Realizar pintura anti-corrosiva", "emissao": "2026-01-26", "responsavel": "A223143"}, {"numero": "110018579", "area": "GEMAN BRANCA", "descricao": "PINTURA DE TAG E CATEGORIA", "emissao": "2026-01-26", "responsavel": "A223143"}, {"numero": "110018585", "area": "GEMAN BRANCA", "descricao": "PINTURA DE TAG E CATEGORIA", "emissao": "2026-01-26", "responsavel": ""}, {"numero": "110032839", "area": "GEMAN BRANCA", "descricao": "Pinta plataforma,escada,plataforma,corre", "emissao": "2026-02-02", "responsavel": "A223591"}, {"numero": "110018583", "area": "GEMAN BRANCA", "descricao": "PINTURA DE TAG E CATEGORIA", "emissao": "2026-01-26", "responsavel": "A132992"}, {"numero": "110076360", "area": "GEMAN BRANCA", "descricao": "PINTURA DA TORRE DE RESFRIAMENTO", "emissao": "2026-02-19", "responsavel": ""}, {"numero": "110018607", "area": "GEMAN BRANCA", "descricao": "PINTURA DE TAG E CATEGORIA", "emissao": "2026-01-26", "responsavel": "A128750"}, {"numero": "110032771", "area": "GEMAN VERMELHA", "descricao": "PINTURA NO ARMARIO DE CAIXA DE EBTV", "emissao": "2026-02-02", "responsavel": "A128750"}, {"numero": "110032810", "area": "FILTRO PRENSA", "descricao": "PINTURA DO PREDIO STAFF MAN. TRADICIONAL", "emissao": "2026-02-02", "responsavel": "A223143"}, {"numero": "110032824", "area": "GEPOR MANUT.", "descricao": "PINTURA DE MARCAÇÃO/IDENTIF DE CAVALETES", "emissao": "2026-02-02", "responsavel": "A223143"}, {"numero": "110032829", "area": "COMERCIAL", "descricao": "REALIZAR PINTURA DO VASO - T-49D-01A", "emissao": "2026-02-02", "responsavel": ""}, {"numero": "110076361", "area": "GEMAN BRANCA", "descricao": "PINTURA DA TORRE DE RESFRIAMENTO", "emissao": "2026-02-19", "responsavel": ""}, {"numero": "110032842", "area": "GEMAN BRANCA", "descricao": "Pinta plataforma,escada,corremão", "emissao": "2026-02-02", "responsavel": "ARGEL"}, {"numero": "110032843", "area": "GEMAN BRANCA", "descricao": "Pinta plataforma,escada,corremão", "emissao": "2026-02-02", "responsavel": ""}, {"numero": "110032846", "area": "COMERCIAL", "descricao": "PINTURA DA CABINE DO SOPRADOR", "emissao": "2026-02-02", "responsavel": ""}, {"numero": "110032854", "area": "GESTÃO DE CONTRATOS", "descricao": "REALIZAR PINTURA/PLOTAGEM", "emissao": "2026-02-02", "responsavel": ""}, {"numero": "110032855", "area": "GEHSE", "descricao": "REVITALIZAR ESTRUTURA E FAIXADA PORTARIA", "emissao": "2026-02-02", "responsavel": ""}, {"numero": "110032859", "area": "GEPOR MANUT.", "descricao": "PINTURA DAS PROTEÇÕES DA BOMBA", "emissao": "2026-02-02", "responsavel": ""}, {"numero": "110032860", "area": "GEPOR MANUT.", "descricao": "PINTURA ESCADA DE ACESSO E GUARDA-CORPO", "emissao": "2026-02-02", "responsavel": ""}, {"numero": "110032862", "area": "GEPOR MANUT.", "descricao": "PINTURA DAS PROTEÇÕES DA BOMBA", "emissao": "2026-02-02", "responsavel": ""}, {"numero": "110032864", "area": "GEPOR MANUT.", "descricao": "PINTURA ESCADA DE ACESSO E GUARDA-CORPO", "emissao": "2026-02-02", "responsavel": ""}, {"numero": "110076363", "area": "GEMAN BRANCA", "descricao": "PINTURA DA TORRE DE RESFRIAMENTO", "emissao": "2026-02-19", "responsavel": ""}, {"numero": "109930877", "area": "GEMAN VERMELHA", "descricao": "Pintura Int. e Ext. Oficina eletrica 58C", "emissao": "2025-12-15", "responsavel": ""}, {"numero": "110242082", "area": "GEMAN VERMELHA", "descricao": "CORRIGIR PINTURA DAS LINHAS DE SPRAY", "emissao": "2026-05-11", "responsavel": ""}, {"numero": "110146350", "area": "ESTAÇÃO EFLUENTES", "descricao": "Vaso NR-13 - PINTURA", "emissao": "2026-03-25", "responsavel": "A809110"}, {"numero": "110172088", "area": "GEHSE", "descricao": "Pintura para sinalizar a base da central", "emissao": "2026-04-08", "responsavel": "ARGEL"}, {"numero": "110172090", "area": "PLANEJ PRED E OFICINAS", "descricao": "PINTURA DA ÁREA DOS TORNOS OFC", "emissao": "2026-04-08", "responsavel": "A133046"}, {"numero": "110172092", "area": "GEMAN VERMELHA", "descricao": "PINTURA PISO SALÃO OFICINA MECANICA 28A", "emissao": "2026-04-08", "responsavel": "ELIAS REZEND"}, {"numero": "110236123", "area": "GEMAN VERMELHA", "descricao": "TRATAMENTO E PINTURA GUARDA CORPO", "emissao": "2026-05-08", "responsavel": ""}, {"numero": "110264306", "area": "ENERGIA", "descricao": "SE-34E-1 - PINTAR PIPE RACK DE CABOS", "emissao": "2026-05-22", "responsavel": ""}, {"numero": "110264331", "area": "GEPOR MANUT.", "descricao": "PINTURA PAINEL DE CAIXAS EBTV", "emissao": "2026-05-22", "responsavel": ""}, {"numero": "110270202", "area": "GEMAN BRANCA", "descricao": "PINTURA DE TAG NA BV DO TANQUE", "emissao": "2026-05-25", "responsavel": "A223591"}, {"numero": "110270255", "area": "GEMAN BRANCA", "descricao": "pintar plataforma para acesso ao piso", "emissao": "2026-05-25", "responsavel": "A223591"}, {"numero": "110287404", "area": "PRECIPITAÇÃO", "descricao": "T-06A-06X serviço de pintura", "emissao": "2026-06-01", "responsavel": "A223591"}, {"numero": "110287405", "area": "GEMAN BRANCA", "descricao": "T-07B-18B serviço de pintura", "emissao": "2026-06-01", "responsavel": ""}, {"numero": "110301710", "area": "ESTAÇÃO EFLUENTES", "descricao": "PV-PINTURA DA FAIXA DE SEGURANÇA", "emissao": "2026-06-08", "responsavel": "A129034"}, {"numero": "110301752", "area": "GESTÃO DE CONTRATOS", "descricao": "REALIZAR PINTURA RESTAURANTE PORTO", "emissao": "2026-06-08", "responsavel": "A223143"}, {"numero": "110301717", "area": "GEHSE", "descricao": "REALIZAR PINTURA", "emissao": "2026-06-08", "responsavel": ""}, {"numero": "110301719", "area": "GEMAN BRANCA", "descricao": "PINTURA DA PLATAFORMA P-09C-03A", "emissao": "2026-06-08", "responsavel": ""}, {"numero": "110301748", "area": "ESTAÇÃO EFLUENTES", "descricao": "Pintura da casa de Bomba 83C", "emissao": "2026-06-08", "responsavel": "ELIAS REZEND"}, {"numero": "110309884", "area": "GESTÃO DE CONTRATOS", "descricao": "REVITALIZAÇÃO PINTURA PRÉDIO ADM ENG 14", "emissao": "2026-06-12", "responsavel": ""}, {"numero": "110385270", "area": "FILTRO PRENSA", "descricao": "Pintura de piso do predio da Manutenção", "emissao": "2026-07-21", "responsavel": "707675"}, {"numero": "110385271", "area": "PLANEJ PRED E OFICINAS", "descricao": "Pintura da sala da Eracliene", "emissao": "2026-07-21", "responsavel": "LUAN FIGUEIR"}, {"numero": "110385273", "area": "FILTRO PRENSA", "descricao": "PINTURA EM PISO NA SALA DE TREINAMENTO", "emissao": "2026-07-21", "responsavel": ""}, {"numero": "110385274", "area": "GESTÃO DE CONTRATOS", "descricao": "PINTURA SALAS SUPORTE DIRETORIA", "emissao": "2026-07-21", "responsavel": "LUAN FIGUEIR"}, {"numero": "110385276", "area": "GEMAN BRANCA", "descricao": "PINTURA DA ESCADA MIRANTE", "emissao": "2026-07-21", "responsavel": "LORENA"}, {"numero": "110390420", "area": "DESAGUAMENTO MANUT.", "descricao": "pintura do predio da EDB e estacionamen", "emissao": "2026-07-24", "responsavel": "ERASMO"}, {"numero": "110390421", "area": "GESTÃO DE CONTRATOS", "descricao": "Pintura Pipe Reck", "emissao": "2026-07-24", "responsavel": "FRANCISCO"}, {"numero": "110390422", "area": "GEMAN BRANCA", "descricao": "REALIZAR PINTURA ANTICORROSIVA NR13", "emissao": "2026-07-24", "responsavel": ""}, {"numero": "110396339", "area": "GESTÃO DE CONTRATOS", "descricao": "RLZ. PINT.NO VÃO SUPERIOR  SALA EXT.", "emissao": "2026-07-27", "responsavel": ""}, {"numero": "110396341", "area": "PLANEJ PRED E OFICINAS", "descricao": "Pintura do Prédio da Oficna Eletrica", "emissao": "2026-07-27", "responsavel": "A826446"}, {"numero": "110396342", "area": "GESTÃO DE CONTRATOS", "descricao": "PINTURA ESCRITÓRIO AUTOMAÇÃO", "emissao": "2026-07-27", "responsavel": ""}, {"numero": "110396345", "area": "PLANEJ PRED E OFICINAS", "descricao": "REVITALIZAÇÃO DA CENTRAL DE RESÍDUOS", "emissao": "2026-07-27", "responsavel": ""}, {"numero": "110396346", "area": "GEMAN VERMELHA", "descricao": "Pintura pra ER-04B-01", "emissao": "2026-07-27", "responsavel": "SALATIEL"}, {"numero": "110396427", "area": "UTILIDADES MANUT.", "descricao": "PINTURA PARA O ABRIGO DAS ER-57A-15/16", "emissao": "2026-07-27", "responsavel": "LUAN FIGUEIR"}, {"numero": "110396428", "area": "GEMAN VERMELHA", "descricao": "Pintura para proteção da ER-02B-06", "emissao": "2026-07-27", "responsavel": "A127974"}, {"numero": "110396429", "area": "UTILIDADES MANUT.", "descricao": "TRATAMENTO E PINTURA DA CALDEIRA DZ", "emissao": "2026-07-27", "responsavel": "FLÁVIO HERMA"}, {"numero": "110396430", "area": "ESTAÇÃO EFLUENTES", "descricao": "REALIZAR PINTURA DA ESTRUTURA METÁLICA", "emissao": "2026-07-27", "responsavel": ""}, {"numero": "110227621", "area": "GEVAP OPER.", "descricao": "PINTURA DO PISO", "emissao": "2026-05-04", "responsavel": "A705638"}, {"numero": "110400396", "area": "FILTRO PRENSA", "descricao": "solicito pintura na sala do kanban", "emissao": "2026-07-29", "responsavel": "A705638"}, {"numero": "110400397", "area": "GEMAN BRANCA", "descricao": "PINTURA BOMBA VACUO CL-4002/4", "emissao": "2026-07-29", "responsavel": "A705638"}, {"numero": "110282667", "area": "GEMAN BRANCA", "descricao": "PINTURA DE TAG NO COSTADO", "emissao": "2026-05-30", "responsavel": ""}, {"numero": "110172093", "area": "ESTAÇÃO EFLUENTES", "descricao": "Vaso NR-13 - PINTURA", "emissao": "2026-04-08", "responsavel": ""}, {"numero": "110329136", "area": "GEPOR MANUT.", "descricao": "REVITALIZA PINTURA CONTRA-PESO C-020-08A", "emissao": "2026-06-22", "responsavel": ""}, {"numero": "110329138", "area": "GEPOR MANUT.", "descricao": "REVITALIZA PINTURA CONTRA-PESO C-020-08B", "emissao": "2026-06-22", "responsavel": "MESSIAS"}, {"numero": "110329141", "area": "GEMAN BRANCA", "descricao": "Pintura da estrutura e corremão da plata", "emissao": "2026-06-22", "responsavel": "A705638"}, {"numero": "110329142", "area": "GEMAN BRANCA", "descricao": "Pintura da estrutura e corremão da plata", "emissao": "2026-06-22", "responsavel": ""}, {"numero": "110329143", "area": "GESTÃO DE CONTRATOS", "descricao": "Reparo e Pintura", "emissao": "2026-06-22", "responsavel": "CIVAL MARCEL"}, {"numero": "110329209", "area": "GESTÃO DE CONTRATOS", "descricao": "#I.E.- TRAT. PINTUR PIPE RACK E-19", "emissao": "2026-06-22", "responsavel": ""}, {"numero": "110396431", "area": "UTILIDADES MANUT.", "descricao": "Pintura da sala elétrica precipitador", "emissao": "2026-07-27", "responsavel": "A705638"}, {"numero": "110227625", "area": "GEMAN BRANCA", "descricao": "Pintura no piso da sala de materiais", "emissao": "2026-05-04", "responsavel": "EVARISTO"}, {"numero": "110155797", "area": "ESTAÇÃO EFLUENTES", "descricao": "Pintura Externa Torres Resfriamento 58B2", "emissao": "2026-03-30", "responsavel": "EVARISTO"}, {"numero": "110282668", "area": "GEMAN BRANCA", "descricao": "númerar cavalete triplo", "emissao": "2026-05-30", "responsavel": "A705638"}, {"numero": "110341657", "area": "GEMAN BRANCA", "descricao": "T-07A-02B serviço de pintura", "emissao": "2026-06-29", "responsavel": "PASTANA"}];
 const TABS = [
+  {id:'dashboard', label:'Dashboard'},
   {id:'ordens', label:'Ordens'},
   {id:'visitas', label:'Visitas'},
   {id:'notas', label:'Notas'},
@@ -226,6 +316,7 @@ const TABS = [
 const FIELDS = {
   ordens: [
     {key:'numero', label:'Nº da Ordem', type:'text', required:true},
+    {key:'area', label:'Área', type:'text', required:true},
     {key:'descricao', label:'Descrição', type:'text', full:true, required:true},
     {key:'emissao', label:'Data de Emissão', type:'date', required:true},
     {key:'responsavel', label:'Responsável', type:'text'},
@@ -248,10 +339,118 @@ const FIELDS = {
     {key:'responsavel', label:'Responsável', type:'text'},
   ],
 };
-const NOTA_STATUS_OPTIONS = ['Aberta','Em Andamento','Concluída'];
+const NOTA_STATUS_OPTIONS = ['Pendente','Concluído'];
+function normalizeNotaStatus(s){
+  if(s==='Concluída' || s==='Concluído') return 'Concluído';
+  return 'Pendente';
+}
+const SITUACAO_VISITA_OPTIONS = ['NÃO INICIADO','VISITADO','NÃO VISITADO','EM ELABORAÇÃO','ELABORADO','PENDENTE ELABORAÇÃO','FALTA DE INFORMAÇÃO NA NOTA','CONCLUÍDO','CANCELADO'];
+const TEAM_MEMBERS = ['RÔMULO','LUCAS','JOÃO','JOSÉ','RICHARD'];
+function situacaoVisitaCode(s){
+  if(s==='VISITADO' || s==='CONCLUÍDO' || s==='ELABORADO') return 'ok';
+  if(s==='CANCELADO') return 'bad';
+  return 'warn';
+}
+function teamSelect(n, field){
+  const current = n[field] || '';
+  return `<select class="status-select" onchange="updateNotaField('${n.id}','${field}',this.value)">
+    <option value="" ${!current?'selected':''}>Selecionar…</option>
+    ${TEAM_MEMBERS.map(m=>`<option value="${m}" ${current===m?'selected':''}>${m}</option>`).join('')}
+  </select>`;
+}
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDJSNKl1bgJR8J8oY2pVvnVq5k952VECQI",
+  authDomain: "painel-obra-reframax.firebaseapp.com",
+  projectId: "painel-obra-reframax",
+  storageBucket: "painel-obra-reframax.firebasestorage.app",
+  messagingSenderId: "787131967787",
+  appId: "1:787131967787:web:180f33dae70a9d286c3d6e",
+  measurementId: "G-11H4V92ZES"
+};
+let db = null;
+try{
+  if(typeof firebase !== 'undefined'){
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+  }
+}catch(e){ console.error('Falha ao iniciar Firebase', e); db = null; }
+
+async function storageGet(key, shared){
+  if(db){
+    try{
+      const doc = await db.collection('painel-obra-data').doc(key).get();
+      if(!doc.exists) return null;
+      return {key, value: doc.data().value, shared: !!shared};
+    }catch(e){ console.error('storageGet (Firestore) falhou', e); }
+  }
+  try{
+    const raw = localStorage.getItem((shared?'shared:':'local:')+key);
+    return raw!==null ? {key, value: raw, shared: !!shared} : null;
+  }catch(e){ return null; }
+}
+async function storageSet(key, value, shared){
+  if(db){
+    try{
+      await db.collection('painel-obra-data').doc(key).set({value, updatedAt: Date.now()});
+      return {key, value, shared: !!shared};
+    }catch(e){ console.error('storageSet (Firestore) falhou', e); }
+  }
+  try{
+    localStorage.setItem((shared?'shared:':'local:')+key, value);
+    return {key, value, shared: !!shared};
+  }catch(e){ return null; }
+}
 
 let state = { ordens: [], visitas: [], notas: [] };
-let activeTab = 'ordens';
+let activeTab = 'dashboard';
+let filterState = { ordens:{}, visitas:{}, notas:{} };
+let openFilterDropdown = null;
+
+function toggleFilterDropdown(tab, key){
+  openFilterDropdown = (openFilterDropdown && openFilterDropdown.tab===tab && openFilterDropdown.key===key)
+    ? null : {tab, key};
+  render();
+}
+function toggleFilterValue(tab, key, value){
+  const cur = filterState[tab][key] || [];
+  filterState[tab][key] = cur.includes(value) ? cur.filter(v=>v!==value) : [...cur, value];
+  render();
+}
+function clearOneFilter(tab, key){
+  delete filterState[tab][key];
+  render();
+}
+function clearFilters(tab){
+  filterState[tab] = {};
+  openFilterDropdown = null;
+  render();
+}
+function uniqueValues(arr, key){
+  return [...new Set(arr.map(x=>x[key]).filter(v=>v!==undefined && v!==null && v!==''))].sort((a,b)=>String(a).localeCompare(String(b),'pt-BR'));
+}
+function filterSelect(tab, key, label, options){
+  const selected = filterState[tab][key] || [];
+  const isOpen = openFilterDropdown && openFilterDropdown.tab===tab && openFilterDropdown.key===key;
+  const btnLabel = selected.length===0 ? 'Todos' : (selected.length===1 ? selected[0] : `${selected.length} selecionados`);
+  return `<div class="filter-field">
+    <span class="filter-field-label">${label}</span>
+    <button type="button" class="filter-dropdown-btn ${selected.length?'active':''}" onclick="toggleFilterDropdown('${tab}','${key}')">${btnLabel} ▾</button>
+    ${isOpen ? `<div class="filter-dropdown-panel">
+      ${options.map(o=>`<label class="filter-checkbox">
+        <input type="checkbox" ${selected.includes(o)?'checked':''} onchange="toggleFilterValue('${tab}','${key}','${o.replace(/'/g,"\\'")}')"/>
+        <span>${o}</span>
+      </label>`).join('')}
+      ${selected.length ? `<button type="button" class="btn ghost small" style="margin-top:6px;width:100%;" onclick="clearOneFilter('${tab}','${key}')">Limpar</button>` : ''}
+    </div>` : ''}
+  </div>`;
+}
+function applyFilters(tab, rows, matchers){
+  const f = filterState[tab];
+  const active = Object.keys(f).filter(k=> f[k] && f[k].length>0);
+  if(active.length===0) return rows;
+  return rows.filter(r=> active.every(k=> matchers[k] ? matchers[k](r, f[k]) : true));
+}
 let formOpen = { ordens:false, visitas:false, notas:false };
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
@@ -304,7 +503,7 @@ let userFormError = '';
 
 async function loadUsers(){
   try{
-    const r = await window.storage.get('usuarios', true);
+    const r = await storageGet('usuarios', true);
     usersList = r ? JSON.parse(r.value) : [];
   }catch(e){ usersList = []; }
   if(usersList.length===0){
@@ -313,7 +512,7 @@ async function loadUsers(){
   }
 }
 async function saveUsers(){
-  try{ await window.storage.set('usuarios', JSON.stringify(usersList), true); }
+  try{ await storageSet('usuarios', JSON.stringify(usersList), true); }
   catch(e){ console.error('Falha ao salvar usuários', e); }
 }
 
@@ -417,14 +616,30 @@ function renderUserPanel(){
 async function loadAll(){
   for(const t of TABS){
     try{
-      const r = await window.storage.get('painel:'+t.id);
+      const r = await storageGet('painel:'+t.id);
       state[t.id] = r ? JSON.parse(r.value) : [];
     }catch(e){ state[t.id] = []; }
   }
+  await seedInitialData();
+}
+
+async function seedInitialData(){
+  let seedFlag = null;
+  try{ seedFlag = await storageGet('painel:seeded'); }catch(e){}
+  if(seedFlag) return;
+  if(state.ordens.length===0 && Array.isArray(INITIAL_ORDENS)){
+    state.ordens = INITIAL_ORDENS.map(o=>({ id: uid(), criadoEm: Date.now(), ...o }));
+    await saveTab('ordens');
+  }
+  if(state.notas.length===0 && Array.isArray(INITIAL_NOTAS)){
+    state.notas = INITIAL_NOTAS.map(n=>({ id: uid(), criadoEm: Date.now(), foto:'', ...n }));
+    await saveTab('notas');
+  }
+  try{ await storageSet('painel:seeded', '1'); }catch(e){}
 }
 async function saveTab(tab){
   try{
-    await window.storage.set('painel:'+tab, JSON.stringify(state[tab]));
+    await storageSet('painel:'+tab, JSON.stringify(state[tab]));
   }catch(e){ console.error('Falha ao salvar', tab, e); }
 }
 
@@ -482,15 +697,34 @@ function renderOrdensTable(){
   if(state.ordens.length===0){
     return `<div class="empty"><b>Nenhuma ordem cadastrada</b>Registre uma ordem para começar a acompanhar o prazo de 42 dias.</div>`;
   }
-  const rows = [...state.ordens].sort((a,b)=> new Date(a.emissao)-new Date(b.emissao));
-  return `<div class="table-scroll"><table><thead><tr>
-      <th>Nº</th><th>Descrição</th><th>Emissão</th><th>Responsável</th><th>Prazo</th><th></th>
+  const areaOptions = uniqueValues(state.ordens,'area');
+  const respOptions = uniqueValues(state.ordens,'responsavel');
+  const prazoOptions = ['No Prazo','Vencendo','Vencido'];
+  const matchers = {
+    area: (o,vals)=> vals.includes(o.area),
+    responsavel: (o,vals)=> vals.includes(o.responsavel),
+    prazo: (o,vals)=> vals.includes(({ok:'No Prazo',warn:'Vencendo',bad:'Vencido'})[ordemStatus(o.emissao).code]),
+  };
+  const filterBar = `<div class="filter-bar" id="filterBarOrdens">
+    ${filterSelect('ordens','area','Área',areaOptions)}
+    ${filterSelect('ordens','responsavel','Responsável',respOptions)}
+    ${filterSelect('ordens','prazo','Prazo',prazoOptions)}
+    <button class="btn ghost small" onclick="clearFilters('ordens')">Limpar filtros</button>
+  </div>`;
+  let rows = [...state.ordens].sort((a,b)=> new Date(a.emissao)-new Date(b.emissao));
+  rows = applyFilters('ordens', rows, matchers);
+  if(rows.length===0){
+    return filterBar + `<div class="empty"><b>Nenhuma ordem encontrada</b>Ajuste os filtros acima.</div>`;
+  }
+  return filterBar + `<div class="table-scroll"><table><thead><tr>
+      <th>Nº</th><th>Área</th><th>Descrição</th><th>Emissão</th><th>Responsável</th><th>Prazo</th><th></th>
     </tr></thead><tbody>
     ${rows.map(o=>{
       const s = ordemStatus(o.emissao);
       const diasTxt = s.restante>=0 ? `${s.restante}d restantes` : `${Math.abs(s.restante)}d em atraso`;
       return `<tr>
         <td class="mono">${o.numero}</td>
+        <td>${o.area||'—'}</td>
         <td>${o.descricao}</td>
         <td class="mono">${o.emissao}</td>
         <td>${o.responsavel||'—'}</td>
@@ -501,13 +735,98 @@ function renderOrdensTable(){
     </tbody></table></div>`;
 }
 
-function renderVisitasTable(){
-  if(state.visitas.length===0){
-    return `<div class="empty"><b>Nenhuma visita agendada</b>Registre uma visita para acompanhar aqui.</div>`;
+function notaDeadline(dataSolicitacao){
+  if(!dataSolicitacao) return null;
+  const d = new Date(dataSolicitacao + 'T00:00:00');
+  d.setDate(d.getDate() + 16);
+  return d;
+}
+
+function notasVencendoSemana(){
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const diaSemana = hoje.getDay(); // 0=domingo
+  const offsetSegunda = diaSemana===0 ? -6 : 1-diaSemana;
+  const segunda = new Date(hoje); segunda.setDate(hoje.getDate()+offsetSegunda);
+  const domingo = new Date(segunda); domingo.setDate(segunda.getDate()+6);
+  return state.notas.filter(n=>{
+    const dl = notaDeadline(n.dataSolicitacao);
+    return dl && dl>=segunda && dl<=domingo;
+  }).sort((a,b)=> notaDeadline(a.dataSolicitacao) - notaDeadline(b.dataSolicitacao));
+}
+
+function notasAVencer7Dias(){
+  return state.notas.filter(n=>{
+    const v = notaVencimento(n.dataSolicitacao);
+    return v.restante>=0 && v.restante<=7;
+  }).sort((a,b)=> notaVencimento(a.dataSolicitacao).restante - notaVencimento(b.dataSolicitacao).restante);
+}
+
+function renderNotaAlertList(list, emptyMsg){
+  if(list.length===0){
+    return `<div class="empty" style="padding:18px 10px;"><b style="font-size:15px;">${emptyMsg}</b></div>`;
   }
-  const rows = [...state.visitas].sort((a,b)=> new Date(a.data)-new Date(b.data));
-  const statusCode = s => s==='Realizada'?'ok':s==='Cancelada'?'bad':'warn';
   return `<div class="table-scroll"><table><thead><tr>
+      <th>Nº Nota</th><th>Área</th><th>Descrição</th><th>Responsável</th><th>Prazo</th><th>Situação da Visita</th><th>Primeiro Responsável</th><th>Responsável Atual</th>
+    </tr></thead><tbody>
+    ${list.map(n=>{
+      const v = notaVencimento(n.dataSolicitacao);
+      const dl = notaDeadline(n.dataSolicitacao);
+      const dlStr = dl ? dl.toISOString().slice(0,10) : '—';
+      const diasTxt = v.restante>=0 ? `${v.restante}d restantes` : `${Math.abs(v.restante)}d em atraso`;
+      const situacaoCode = situacaoVisitaCode(n.situacaoVisita||'NÃO INICIADO');
+      return `<tr>
+        <td class="mono">${n.numero}</td>
+        <td>${n.area}</td>
+        <td>${n.texto}</td>
+        <td>${n.responsavel||'—'}</td>
+        <td><span class="status-tag ${v.code}">${v.label}</span><div class="mono" style="margin-top:4px;">${dlStr} · ${diasTxt}</div></td>
+        <td>
+          <select class="status-select ${situacaoCode}" onchange="updateNotaField('${n.id}','situacaoVisita',this.value)">
+            ${SITUACAO_VISITA_OPTIONS.map(o=>`<option value="${o}" ${(n.situacaoVisita||'NÃO INICIADO')===o?'selected':''}>${o}</option>`).join('')}
+          </select>
+        </td>
+        <td>${teamSelect(n,'primeiroResponsavel')}</td>
+        <td>${teamSelect(n,'responsavelAtual')}</td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div>`;
+}
+
+function renderVisitasTable(){
+  const semana = notasVencendoSemana();
+  const seteDias = notasAVencer7Dias();
+  const alerts = `
+    <div class="dash-section">
+      <h3>Notas vencendo nesta semana</h3>
+      ${renderNotaAlertList(semana, 'Nenhuma nota com vencimento nesta semana.')}
+    </div>
+    <div class="dash-section">
+      <h3>Notas a vencer em até 7 dias</h3>
+      ${renderNotaAlertList(seteDias, 'Nenhuma nota vencendo nos próximos 7 dias.')}
+    </div>
+    <div class="dash-section"><h3>Visitas registradas</h3></div>`;
+
+  if(state.visitas.length===0){
+    return alerts + `<div class="empty"><b>Nenhuma visita agendada</b>Registre uma visita para acompanhar aqui.</div>`;
+  }
+  const respOptions = uniqueValues(state.visitas,'responsavel');
+  const statusOptions = ['Agendada','Realizada','Cancelada'];
+  const matchers = {
+    responsavel: (v,vals)=> vals.includes(v.responsavel),
+    status: (v,vals)=> vals.includes(v.status),
+  };
+  const filterBar = `<div class="filter-bar">
+    ${filterSelect('visitas','responsavel','Responsável',respOptions)}
+    ${filterSelect('visitas','status','Status',statusOptions)}
+    <button class="btn ghost small" onclick="clearFilters('visitas')">Limpar filtros</button>
+  </div>`;
+  let rows = [...state.visitas].sort((a,b)=> new Date(a.data)-new Date(b.data));
+  rows = applyFilters('visitas', rows, matchers);
+  const statusCode = s => s==='Realizada'?'ok':s==='Cancelada'?'bad':'warn';
+  if(rows.length===0){
+    return alerts + filterBar + `<div class="empty"><b>Nenhuma visita encontrada</b>Ajuste os filtros acima.</div>`;
+  }
+  return alerts + filterBar + `<div class="table-scroll"><table><thead><tr>
       <th>Local</th><th>Data</th><th>Responsável</th><th>Status</th><th>Obs.</th><th></th>
     </tr></thead><tbody>
     ${rows.map(v=>`<tr>
@@ -521,13 +840,41 @@ function renderVisitasTable(){
     </tbody></table></div>`;
 }
 
+function renderNotasFilterBar(){
+  const areas = uniqueValues(state.notas,'area');
+  const vencOptions = ['No Prazo','Vencendo','Vencido'];
+  return `<div class="filter-bar">
+    ${filterSelect('notas','area','Área',areas)}
+    ${filterSelect('notas','situacaoVisita','Situação da Visita',SITUACAO_VISITA_OPTIONS)}
+    ${filterSelect('notas','primeiroResponsavel','Primeiro Responsável',TEAM_MEMBERS)}
+    ${filterSelect('notas','responsavelAtual','Responsável Atual',TEAM_MEMBERS)}
+    ${filterSelect('notas','vencimento','Vencimento',vencOptions)}
+    ${filterSelect('notas','status','Status',NOTA_STATUS_OPTIONS)}
+    <button class="btn ghost small" onclick="clearFilters('notas')">Limpar filtros</button>
+  </div>`;
+}
+
 function renderNotasTable(){
   if(state.notas.length===0){
     return `<div class="empty"><b>Nenhuma nota registrada</b>Use notas para registrar solicitações de campo ou obra.</div>`;
   }
-  const rows = [...state.notas].sort((a,b)=> (b.criadoEm||0)-(a.criadoEm||0));
-  return `<div class="table-scroll"><table><thead><tr>
-      <th>Foto</th><th>Nº Nota</th><th>Área</th><th>Descrição</th><th>Solicitante</th><th>Telefone</th><th>Centro de Custo</th><th>Responsável</th><th>Data da Solicitação</th><th>Data da Visita</th><th>Vencimento</th><th>Status</th><th></th>
+  const vencLabel = {ok:'No Prazo', warn:'Vencendo', bad:'Vencido'};
+  const matchers = {
+    area: (n,vals)=> vals.includes(n.area),
+    situacaoVisita: (n,vals)=> vals.includes(n.situacaoVisita||'NÃO INICIADO'),
+    primeiroResponsavel: (n,vals)=> vals.includes(n.primeiroResponsavel),
+    responsavelAtual: (n,vals)=> vals.includes(n.responsavelAtual),
+    vencimento: (n,vals)=> vals.includes(vencLabel[notaVencimento(n.dataSolicitacao).code]),
+    status: (n,vals)=> vals.includes(normalizeNotaStatus(n.status)),
+  };
+  let rows = [...state.notas].sort((a,b)=> (b.criadoEm||0)-(a.criadoEm||0));
+  rows = applyFilters('notas', rows, matchers);
+  const filterBar = renderNotasFilterBar();
+  if(rows.length===0){
+    return filterBar + `<div class="empty"><b>Nenhuma nota encontrada</b>Ajuste os filtros acima.</div>`;
+  }
+  return filterBar + `<div class="table-scroll"><table><thead><tr>
+      <th>Foto</th><th>Nº Nota</th><th>Área</th><th>Descrição</th><th>Solicitante</th><th>Telefone</th><th>Centro de Custo</th><th>Responsável</th><th>Data da Solicitação</th><th>Data da Visita</th><th>Situação da Visita</th><th>Primeiro Responsável</th><th>Responsável Atual</th><th>Vencimento</th><th>Status</th><th></th>
     </tr></thead><tbody>
     ${rows.map(n=>{
       const v = notaVencimento(n.dataSolicitacao);
@@ -535,6 +882,7 @@ function renderNotasTable(){
       const foto = n.foto
         ? `<img src="${n.foto}" class="thumb" onclick="openPhotoModal('${n.id}')"/>`
         : '<span class="mono">—</span>';
+      const situacaoCode = situacaoVisitaCode(n.situacaoVisita||'NÃO INICIADO');
       return `<tr>
         <td>${foto}</td>
         <td class="mono">${n.numero}</td>
@@ -546,10 +894,17 @@ function renderNotasTable(){
         <td>${n.responsavel||'—'}</td>
         <td class="mono">${n.dataSolicitacao||'—'}</td>
         <td><input type="date" class="date-input" value="${n.dataVisita||''}" onchange="updateNotaField('${n.id}','dataVisita',this.value)"/></td>
+        <td>
+          <select class="status-select ${situacaoCode}" onchange="updateNotaField('${n.id}','situacaoVisita',this.value)">
+            ${SITUACAO_VISITA_OPTIONS.map(o=>`<option value="${o}" ${(n.situacaoVisita||'NÃO INICIADO')===o?'selected':''}>${o}</option>`).join('')}
+          </select>
+        </td>
+        <td>${teamSelect(n,'primeiroResponsavel')}</td>
+        <td>${teamSelect(n,'responsavelAtual')}</td>
         <td><span class="status-tag ${v.code}">${v.label}</span><div class="mono" style="margin-top:4px;">${diasTxt}</div></td>
         <td>
           <select class="status-select" onchange="updateNotaField('${n.id}','status',this.value)">
-            ${NOTA_STATUS_OPTIONS.map(o=>`<option value="${o}" ${n.status===o?'selected':''}>${o}</option>`).join('')}
+            ${NOTA_STATUS_OPTIONS.map(o=>`<option value="${o}" ${normalizeNotaStatus(n.status)===o?'selected':''}>${o}</option>`).join('')}
           </select>
         </td>
         <td><div class="row-actions">
@@ -586,12 +941,15 @@ function printNota(id){
         <tr><td class="label">Descrição</td><td class="desc">${n.texto}</td></tr>
         <tr><td class="label">Data da Solicitação</td><td>${n.dataSolicitacao}</td></tr>
         <tr><td class="label">Data da Visita</td><td>${n.dataVisita||'—'}</td></tr>
+        <tr><td class="label">Situação da Visita</td><td>${n.situacaoVisita||'Não Visitada'}</td></tr>
+        <tr><td class="label">Primeiro Responsável</td><td>${n.primeiroResponsavel||'—'}</td></tr>
+        <tr><td class="label">Responsável Atual</td><td>${n.responsavelAtual||'—'}</td></tr>
         <tr><td class="label">Vencimento (16 dias)</td><td>${v.label} — ${diasTxt}</td></tr>
         <tr><td class="label">Solicitante</td><td>${n.solicitante||'—'}</td></tr>
         <tr><td class="label">Telefone</td><td>${n.telefone||'—'}</td></tr>
         <tr><td class="label">Centro de Custo</td><td>${n.centroCusto||'—'}</td></tr>
         <tr><td class="label">Responsável</td><td>${n.responsavel||'—'}</td></tr>
-        <tr><td class="label">Status</td><td>${n.status||'—'}</td></tr>
+        <tr><td class="label">Status</td><td>${normalizeNotaStatus(n.status)}</td></tr>
       </table>
       ${n.foto ? `<img src="${n.foto}"/>` : ''}
     </body></html>
@@ -610,9 +968,300 @@ function renderCounts(){
   </div>`;
 }
 
+function goToFilter(tab, key, value){
+  activeTab = tab;
+  filterState[tab][key] = [value];
+  openFilterDropdown = null;
+  render();
+  const panel = document.querySelector('section.panel');
+  if(panel) panel.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function barRow(label, count, total, colorVar, onFilter){
+  const pct = total>0 ? Math.round((count/total)*100) : 0;
+  const clickAttr = onFilter ? `onclick="goToFilter('${onFilter.tab}','${onFilter.key}','${String(label).replace(/'/g,"\\'")}')"` : '';
+  const cls = onFilter ? 'bar-row bar-row-clickable' : 'bar-row';
+  return `<div class="${cls}" ${clickAttr}>
+    <div class="bar-label">${label}</div>
+    <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${colorVar};"></div></div>
+    <div class="bar-count">${count}</div>
+  </div>`;
+}
+
+function countBy(arr, keyFn){
+  const map = {};
+  arr.forEach(item=>{
+    const k = keyFn(item) || '—';
+    map[k] = (map[k]||0) + 1;
+  });
+  return Object.entries(map).sort((a,b)=>b[1]-a[1]);
+}
+
+const CHART_COLORS = ['#1F3D80','#2A5CAE','#5B8FD6','#2F7A45','#B9860F','#B23A32','#7B5EA7','#3F9B8E','#C2680C','#6D7A8C'];
+
+function pieChart(segments, size, onFilter){
+  size = size || 168;
+  const total = segments.reduce((a,s)=>a+s.count,0);
+  if(total===0) return `<div class="pie-empty">Sem dados</div>`;
+  const cx=size/2, cy=size/2, r=size/2-6;
+  let startAngle = -90;
+  const parts = segments.filter(s=>s.count>0).map(s=>{
+    const angle = (s.count/total)*360;
+    const endAngle = startAngle+angle;
+    const large = angle>180?1:0;
+    const x1 = cx + r*Math.cos(startAngle*Math.PI/180);
+    const y1 = cy + r*Math.sin(startAngle*Math.PI/180);
+    const x2 = cx + r*Math.cos(endAngle*Math.PI/180);
+    const y2 = cy + r*Math.sin(endAngle*Math.PI/180);
+    const d = angle>=360
+      ? `M${cx},${cy-r} A${r},${r} 0 1 1 ${cx-0.01},${cy-r} Z`
+      : `M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${large} 1 ${x2.toFixed(2)},${y2.toFixed(2)} Z`;
+    startAngle = endAngle;
+    const clickAttr = onFilter ? ` onclick="goToFilter('${onFilter.tab}','${onFilter.key}','${String(s.label).replace(/'/g,"\\'")}')" class="pie-slice-clickable"` : '';
+    return `<path d="${d}" fill="${s.color}"${clickAttr}><title>${s.label}: ${s.count}</title></path>`;
+  }).join('');
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    ${parts}
+    <circle cx="${cx}" cy="${cy}" r="${r*0.56}" fill="var(--panel)"/>
+    <text x="${cx}" y="${cy-4}" text-anchor="middle" font-family="Barlow Condensed" font-weight="700" font-size="22" fill="var(--ink)">${total}</text>
+    <text x="${cx}" y="${cy+14}" text-anchor="middle" font-family="Inter" font-size="10" fill="var(--ink-soft)">total</text>
+  </svg>`;
+}
+
+function pieLegend(segments, onFilter){
+  const total = segments.reduce((a,s)=>a+s.count,0);
+  return `<div class="pie-legend">
+    ${segments.map(s=>{
+      const pct = total>0 ? Math.round((s.count/total)*100) : 0;
+      const clickAttr = onFilter ? ` onclick="goToFilter('${onFilter.tab}','${onFilter.key}','${String(s.label).replace(/'/g,"\\'")}')"` : '';
+      const cls = onFilter ? 'pie-legend-row pie-legend-clickable' : 'pie-legend-row';
+      return `<div class="${cls}"${clickAttr}>
+        <span class="pie-swatch" style="background:${s.color};"></span>
+        <span class="pie-legend-label">${s.label}</span>
+        <span class="pie-legend-count">${s.count} · ${pct}%</span>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function pieBlock(title, segments, onFilter){
+  return `<div class="pie-block">
+    <h4>${title}${onFilter ? '<span class="pie-hint">clique para filtrar</span>' : ''}</h4>
+    <div class="pie-body">
+      ${pieChart(segments, null, onFilter)}
+      ${pieLegend(segments, onFilter)}
+    </div>
+  </div>`;
+}
+
+function renderDashboard(){
+  const ordens = state.ordens;
+  const notas = state.notas;
+  const ordensStatusCount = {ok:0, warn:0, bad:0};
+  ordens.forEach(o=>{ ordensStatusCount[ordemStatus(o.emissao).code]++; });
+  const notasVencCount = {ok:0, warn:0, bad:0};
+  notas.forEach(n=>{ notasVencCount[notaVencimento(n.dataSolicitacao).code]++; });
+  const notasStatusCount = {};
+  NOTA_STATUS_OPTIONS.forEach(s=> notasStatusCount[s]=0);
+  notas.forEach(n=>{ const st = normalizeNotaStatus(n.status); notasStatusCount[st] = (notasStatusCount[st]||0)+1; });
+
+  const notasPorArea = countBy(notas, n=>n.area).slice(0,8);
+  const ordensPorArea = countBy(ordens, o=>o.area).slice(0,8);
+  const totalOrdens = ordens.length;
+  const totalNotas = notas.length;
+
+  const prazoSegs = [
+    {label:'No Prazo', count:ordensStatusCount.ok, color:'#2F7A45'},
+    {label:'Vencendo', count:ordensStatusCount.warn, color:'#B9860F'},
+    {label:'Vencido', count:ordensStatusCount.bad, color:'#B23A32'},
+  ];
+  const vencSegs = [
+    {label:'No Prazo', count:notasVencCount.ok, color:'#2F7A45'},
+    {label:'Vencendo', count:notasVencCount.warn, color:'#B9860F'},
+    {label:'Vencido', count:notasVencCount.bad, color:'#B23A32'},
+  ];
+  const statusSegs = NOTA_STATUS_OPTIONS.map((s,i)=>({label:s, count:notasStatusCount[s]||0, color: s==='Concluído' ? '#2F7A45' : '#B9860F'}));
+  const notasAreaSegs = notasPorArea.map(([name,count],i)=>({label:name, count, color:CHART_COLORS[i%CHART_COLORS.length]}));
+  const ordensAreaSegs = ordensPorArea.map(([name,count],i)=>({label:name, count, color:CHART_COLORS[i%CHART_COLORS.length]}));
+
+  return `
+    <div class="dash-block dash-block-ordens">
+      <h2 class="dash-block-title">Ordens</h2>
+      <div class="dash-grid">
+        <div class="dash-card">
+          <div class="dash-num">${totalOrdens}</div>
+          <div class="dash-label">Ordens cadastradas</div>
+        </div>
+        <div class="dash-card bad" onclick="goToFilter('ordens','prazo','Vencido')" style="cursor:pointer;">
+          <div class="dash-num">${ordensStatusCount.bad}</div>
+          <div class="dash-label">Vencidas</div>
+        </div>
+        <div class="dash-card warn" onclick="goToFilter('ordens','prazo','Vencendo')" style="cursor:pointer;">
+          <div class="dash-num">${ordensStatusCount.warn}</div>
+          <div class="dash-label">Vencendo</div>
+        </div>
+        <div class="dash-card ok" onclick="goToFilter('ordens','prazo','No Prazo')" style="cursor:pointer;">
+          <div class="dash-num">${ordensStatusCount.ok}</div>
+          <div class="dash-label">No prazo</div>
+        </div>
+      </div>
+      <div class="dash-two-col">
+        ${pieBlock('Ordens por prazo (42 dias)', prazoSegs, {tab:'ordens', key:'prazo'})}
+        ${pieBlock('Ordens por área', ordensAreaSegs, {tab:'ordens', key:'area'})}
+      </div>
+      <div class="dash-section">
+        <h3>Ordens por área (lista)</h3>
+        ${ordensPorArea.length ? ordensPorArea.map(([name,count],i)=>barRow(name, count, totalOrdens, CHART_COLORS[i%CHART_COLORS.length], {tab:'ordens', key:'area'})).join('') : '<div class="mono">Sem dados.</div>'}
+      </div>
+    </div>
+
+    <div class="dash-block dash-block-notas">
+      <h2 class="dash-block-title">Notas</h2>
+      <div class="dash-grid">
+        <div class="dash-card">
+          <div class="dash-num">${totalNotas}</div>
+          <div class="dash-label">Notas cadastradas</div>
+        </div>
+        <div class="dash-card bad" onclick="goToFilter('notas','vencimento','Vencido')" style="cursor:pointer;">
+          <div class="dash-num">${notasVencCount.bad}</div>
+          <div class="dash-label">Vencidas</div>
+        </div>
+        <div class="dash-card warn" onclick="goToFilter('notas','vencimento','Vencendo')" style="cursor:pointer;">
+          <div class="dash-num">${notasVencCount.warn}</div>
+          <div class="dash-label">Vencendo</div>
+        </div>
+        <div class="dash-card ok" onclick="goToFilter('notas','vencimento','No Prazo')" style="cursor:pointer;">
+          <div class="dash-num">${notasVencCount.ok}</div>
+          <div class="dash-label">No prazo</div>
+        </div>
+      </div>
+      <div class="dash-two-col">
+        ${pieBlock('Notas por vencimento (16 dias)', vencSegs, {tab:'notas', key:'vencimento'})}
+        ${pieBlock('Notas por status de andamento', statusSegs, {tab:'notas', key:'status'})}
+      </div>
+      <div class="dash-two-col">
+        <div class="dash-section">
+          <h3>Notas por área (lista)</h3>
+          ${notasPorArea.length ? notasPorArea.map(([name,count],i)=>barRow(name, count, totalNotas, CHART_COLORS[i%CHART_COLORS.length], {tab:'notas', key:'area'})).join('') : '<div class="mono">Sem dados.</div>'}
+        </div>
+        ${pieBlock('Notas por área', notasAreaSegs, {tab:'notas', key:'area'})}
+      </div>
+    </div>
+  `;
+}
+
+function excelDateToStr(v){
+  if(v==null || v==='') return '';
+  if(typeof v === 'number'){
+    const d = XLSX.SSF.parse_date_code(v);
+    if(!d) return '';
+    const mm = String(d.m).padStart(2,'0'), dd = String(d.d).padStart(2,'0');
+    return `${d.y}-${mm}-${dd}`;
+  }
+  if(v instanceof Date){
+    return v.toISOString().slice(0,10);
+  }
+  const s = String(v).trim();
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  const m2 = s.match(/^\d{4}-\d{2}-\d{2}/);
+  if(m2) return m2[0];
+  return '';
+}
+function cell(v){ return (v==null) ? '' : String(v).trim(); }
+
+function findSheet(wb, nameGuess){
+  const found = wb.SheetNames.find(n=>n.toLowerCase().includes(nameGuess.toLowerCase()));
+  return found ? wb.Sheets[found] : null;
+}
+
+function upsertByNumero(list, incoming, extraDefaults){
+  incoming.forEach(item=>{
+    const idx = list.findIndex(x=>x.numero===item.numero);
+    if(idx>=0){
+      list[idx] = { ...list[idx], ...item };
+    } else {
+      list.push({ id: uid(), criadoEm: Date.now(), ...extraDefaults, ...item });
+    }
+  });
+}
+
+async function handleImportFile(ev){
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = '';
+  if(!file) return;
+  if(typeof XLSX === 'undefined'){
+    alert('Não foi possível carregar o leitor de planilhas. Verifique sua conexão e tente novamente.');
+    return;
+  }
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, {type:'array', cellDates:false});
+
+  if(activeTab==='notas'){
+    const sheet = findSheet(wb, 'Controle de Notas');
+    if(!sheet){ alert('Não encontrei uma aba "Controle de Notas" nessa planilha.'); return; }
+    const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:null});
+    let headerIdx = rows.findIndex(r=>r[2]==='Nota');
+    if(headerIdx<0){ alert('Não reconheci o formato da aba de notas.'); return; }
+    const headers = rows[headerIdx];
+    const idxOf = name => headers.indexOf(name);
+    const iNota = idxOf('Nota'), iArea = idxOf('Cliente/Área'), iDesc = idxOf('Descrição do Orçamento'),
+          iDataSol = idxOf('Data Solicitação'), iSolic = idxOf('Solicitante'), iTel = idxOf('Telefone Encontrado '),
+          iCC = idxOf('Centro de Custo'), iResp = idxOf('Responsável'), iVisita = idxOf('Data de visita'),
+          iStatus = idxOf('Status ');
+    const incoming = [];
+    const seen = new Set();
+    for(let i=headerIdx+1;i<rows.length;i++){
+      const r = rows[i];
+      const numero = cell(r[iNota]);
+      if(!numero || seen.has(numero)) continue;
+      seen.add(numero);
+      const statusRaw = cell(r[iStatus]);
+      incoming.push({
+        numero, area: cell(r[iArea]), texto: cell(r[iDesc]),
+        dataSolicitacao: excelDateToStr(r[iDataSol]),
+        solicitante: cell(r[iSolic]), telefone: cell(r[iTel]),
+        centroCusto: cell(r[iCC]), responsavel: cell(r[iResp]),
+        dataVisita: excelDateToStr(r[iVisita]),
+        status: statusRaw==='CONCLUIDO' ? 'Concluída' : (statusRaw==='PENDENTE' ? 'Aberta' : undefined),
+      });
+    }
+    incoming.forEach(it=>{ if(it.status===undefined) delete it.status; });
+    upsertByNumero(state.notas, incoming, {status:'Pendente', foto:''});
+    render();
+    await saveTab('notas');
+    alert(`${incoming.length} nota(s) importada(s)/atualizada(s).`);
+  } else if(activeTab==='ordens'){
+    const sheet = findSheet(wb, 'Controle de Ordens');
+    if(!sheet){ alert('Não encontrei uma aba "Controle de Ordens" nessa planilha.'); return; }
+    const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:null});
+    const headers = rows[0];
+    const idxOf = name => headers.indexOf(name);
+    const iOrdem = idxOf('Ordem'), iArea = idxOf('Área'), iDesc = idxOf('Descrição do Orçamento'),
+          iEmissao = idxOf('Data de criação da ordem'), iResp = idxOf('Solicitante');
+    const incoming = [];
+    const seen = new Set();
+    for(let i=1;i<rows.length;i++){
+      const r = rows[i];
+      const numero = cell(r[iOrdem]);
+      const emissao = excelDateToStr(r[iEmissao]);
+      if(!numero || !emissao || seen.has(numero)) continue;
+      seen.add(numero);
+      incoming.push({ numero, area: cell(r[iArea]), descricao: cell(r[iDesc]), emissao, responsavel: cell(r[iResp]) });
+    }
+    upsertByNumero(state.ordens, incoming, {});
+    render();
+    await saveTab('ordens');
+    alert(`${incoming.length} ordem(ns) importada(s)/atualizada(s).`);
+  } else {
+    alert('Importação disponível apenas nas abas Ordens e Notas.');
+  }
+}
+
 function render(){
-  const titles = {ordens:'Ordens', visitas:'Visitas', notas:'Notas'};
+  const titles = {dashboard:'Dashboard', ordens:'Ordens', visitas:'Visitas', notas:'Notas'};
   const tables = {ordens:renderOrdensTable, visitas:renderVisitasTable, notas:renderNotasTable};
+  const isDashboard = activeTab==='dashboard';
   document.getElementById('app').innerHTML = `
     <header class="top">
       <div class="brand">
@@ -642,12 +1291,15 @@ function render(){
       <div class="panel-head">
         <h2>${titles[activeTab]}</h2>
         ${renderCounts()}
-        <button class="btn ${formOpen[activeTab]?'ghost':'accent'}" onclick="toggleForm('${activeTab}', ${!formOpen[activeTab]})">
-          ${formOpen[activeTab] ? 'Fechar formulário' : '+ Novo registro'}
-        </button>
+        ${!isDashboard ? `<div class="panel-head-actions">
+          <button class="btn ghost" onclick="document.getElementById('importFile').click()">Importar planilha</button>
+          <input type="file" id="importFile" accept=".xlsx,.xls" style="display:none;" onchange="handleImportFile(event)"/>
+          <button class="btn ${formOpen[activeTab]?'ghost':'accent'}" onclick="toggleForm('${activeTab}', ${!formOpen[activeTab]})">
+            ${formOpen[activeTab] ? 'Fechar formulário' : '+ Novo registro'}
+          </button>
+        </div>` : ''}
       </div>
-      ${renderForm(activeTab)}
-      ${tables[activeTab]()}
+      ${isDashboard ? renderDashboard() : `${renderForm(activeTab)}${tables[activeTab]()}`}
     </section>
   `;
 }
@@ -716,7 +1368,7 @@ async function handleAdd(ev, tab){
   const item = { id: uid(), criadoEm: Date.now() };
   FIELDS[tab].forEach(f=>{ item[f.key] = (fd.get(f.key)||'').toString().trim(); });
   if(tab==='notas'){
-    item.status = 'Aberta';
+    item.status = 'Pendente';
     item.foto = notaFotoData || '';
     notaFotoData = '';
   }
