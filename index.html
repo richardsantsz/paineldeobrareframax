@@ -85,6 +85,13 @@
     padding:6px 12px;font-family:'Inter',sans-serif;font-weight:600;font-size:12.5px;cursor:pointer;
   }
   .panel-head-actions{display:flex;gap:8px;align-items:center;}
+  .search-bar{margin-bottom:10px;}
+  .search-input{
+    width:100%;font-family:'Inter',sans-serif;font-size:14px;
+    padding:10px 14px;border:1px solid var(--line);border-radius:var(--radius);
+    background:#fff;color:var(--ink);
+  }
+  .search-input:focus{outline:none;border-color:var(--accent);}
   .filter-bar{
     display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;
     background:#F5F6F7;border:1px solid var(--line);border-radius:var(--radius);
@@ -412,6 +419,28 @@ async function storageSet(key, value, shared){
 let state = { ordens: [], visitas: [], notas: [] };
 let activeTab = 'dashboard';
 let filterState = { ordens:{}, visitas:{}, notas:{} };
+let searchQuery = { ordens:'', visitas:'', notas:'' };
+function setSearch(tab, value){
+  searchQuery[tab] = value;
+  const active = document.activeElement;
+  const id = active && active.id;
+  const selStart = active && typeof active.selectionStart==='number' ? active.selectionStart : null;
+  const selEnd = active && typeof active.selectionEnd==='number' ? active.selectionEnd : null;
+  render();
+  if(id){
+    const el = document.getElementById(id);
+    if(el){
+      el.focus();
+      if(selStart!==null && el.setSelectionRange){
+        try{ el.setSelectionRange(selStart, selEnd); }catch(e){}
+      }
+    }
+  }
+}
+function normSearch(s){
+  return (s||'').toString().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+}
 let openFilterDropdown = null;
 
 function toggleFilterDropdown(tab, key){
@@ -852,7 +881,10 @@ function renderVisitasTable(){
 function renderNotasFilterBar(){
   const areas = uniqueValues(state.notas,'area');
   const vencOptions = ['No Prazo','Vencendo','Vencido'];
-  return `<div class="filter-bar">
+  return `<div class="search-bar">
+    <input type="text" id="notasSearchInput" class="search-input" placeholder="Buscar nota por número, área, descrição, solicitante..." value="${searchQuery.notas||''}" oninput="setSearch('notas', this.value)"/>
+  </div>
+  <div class="filter-bar">
     ${filterSelect('notas','area','Área',areas)}
     ${filterSelect('notas','situacaoVisita','Situação da Visita',SITUACAO_VISITA_OPTIONS)}
     ${filterSelect('notas','primeiroResponsavel','Primeiro Responsável',TEAM_MEMBERS)}
@@ -878,9 +910,13 @@ function renderNotasTable(){
   };
   let rows = [...state.notas].sort((a,b)=> (b.criadoEm||0)-(a.criadoEm||0));
   rows = applyFilters('notas', rows, matchers);
+  const q = normSearch(searchQuery.notas);
+  if(q){
+    rows = rows.filter(n=> normSearch([n.numero,n.area,n.texto,n.solicitante,n.telefone,n.centroCusto,n.responsavel,n.primeiroResponsavel,n.responsavelAtual].join(' ')).includes(q));
+  }
   const filterBar = renderNotasFilterBar();
   if(rows.length===0){
-    return filterBar + `<div class="empty"><b>Nenhuma nota encontrada</b>Ajuste os filtros acima.</div>`;
+    return filterBar + `<div class="empty"><b>Nenhuma nota encontrada</b>Ajuste a busca ou os filtros acima.</div>`;
   }
   return filterBar + `<div class="table-scroll"><table><thead><tr>
       <th>Foto</th><th>Nº Nota</th><th>Área</th><th>Descrição</th><th>Solicitante</th><th>Telefone</th><th>Centro de Custo</th><th>Responsável</th><th>Data da Solicitação</th><th>Data da Visita</th><th>Situação da Visita</th><th>Primeiro Responsável</th><th>Responsável Atual</th><th>Vencimento</th><th>Status</th><th></th>
