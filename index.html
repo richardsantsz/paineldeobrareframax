@@ -743,7 +743,10 @@ function renderOrdensTable(){
     responsavel: (o,vals)=> vals.includes(o.responsavel),
     prazo: (o,vals)=> vals.includes(({ok:'No Prazo',warn:'Vencendo',bad:'Vencido'})[ordemStatus(o.emissao).code]),
   };
-  const filterBar = `<div class="filter-bar" id="filterBarOrdens">
+  const filterBar = `<div class="search-bar">
+    <input type="text" id="ordensSearchInput" class="search-input" placeholder="Buscar ordem por número, área, descrição, responsável..." value="${searchQuery.ordens||''}" oninput="setSearch('ordens', this.value)"/>
+  </div>
+  <div class="filter-bar" id="filterBarOrdens">
     ${filterSelect('ordens','area','Área',areaOptions)}
     ${filterSelect('ordens','responsavel','Responsável',respOptions)}
     ${filterSelect('ordens','prazo','Prazo',prazoOptions)}
@@ -751,8 +754,12 @@ function renderOrdensTable(){
   </div>`;
   let rows = [...state.ordens].sort((a,b)=> new Date(a.emissao)-new Date(b.emissao));
   rows = applyFilters('ordens', rows, matchers);
+  const qOrdens = normSearch(searchQuery.ordens);
+  if(qOrdens){
+    rows = rows.filter(o=> normSearch([o.numero,o.area,o.descricao,o.responsavel].join(' ')).includes(qOrdens));
+  }
   if(rows.length===0){
-    return filterBar + `<div class="empty"><b>Nenhuma ordem encontrada</b>Ajuste os filtros acima.</div>`;
+    return filterBar + `<div class="empty"><b>Nenhuma ordem encontrada</b>Ajuste a busca ou os filtros acima.</div>`;
   }
   return filterBar + `<div class="table-scroll"><table><thead><tr>
       <th>Nº</th><th>Área</th><th>Descrição</th><th>Emissão</th><th>Responsável</th><th>Prazo</th><th></th>
@@ -853,16 +860,23 @@ function renderVisitasTable(){
     responsavel: (v,vals)=> vals.includes(v.responsavel),
     status: (v,vals)=> vals.includes(v.status),
   };
-  const filterBar = `<div class="filter-bar">
+  const filterBar = `<div class="search-bar">
+    <input type="text" id="visitasSearchInput" class="search-input" placeholder="Buscar visita por local, responsável, observação..." value="${searchQuery.visitas||''}" oninput="setSearch('visitas', this.value)"/>
+  </div>
+  <div class="filter-bar">
     ${filterSelect('visitas','responsavel','Responsável',respOptions)}
     ${filterSelect('visitas','status','Status',statusOptions)}
     <button class="btn ghost small" onclick="clearFilters('visitas')">Limpar filtros</button>
   </div>`;
   let rows = [...state.visitas].sort((a,b)=> new Date(a.data)-new Date(b.data));
   rows = applyFilters('visitas', rows, matchers);
+  const qVisitas = normSearch(searchQuery.visitas);
+  if(qVisitas){
+    rows = rows.filter(v=> normSearch([v.local,v.responsavel,v.obs].join(' ')).includes(qVisitas));
+  }
   const statusCode = s => s==='Realizada'?'ok':s==='Cancelada'?'bad':'warn';
   if(rows.length===0){
-    return alerts + filterBar + `<div class="empty"><b>Nenhuma visita encontrada</b>Ajuste os filtros acima.</div>`;
+    return alerts + filterBar + `<div class="empty"><b>Nenhuma visita encontrada</b>Ajuste a busca ou os filtros acima.</div>`;
   }
   return alerts + filterBar + `<div class="table-scroll"><table><thead><tr>
       <th>Local</th><th>Data</th><th>Responsável</th><th>Status</th><th>Obs.</th><th></th>
