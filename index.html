@@ -352,7 +352,7 @@ function normalizeNotaStatus(s){
   if(s==='Concluída' || s==='Concluído') return 'Concluído';
   return 'Pendente';
 }
-const SITUACAO_VISITA_OPTIONS = ['NÃO INICIADO','VISITADO','NÃO VISITADO','EM ELABORAÇÃO','ELABORADO','PENDENTE ELABORAÇÃO','FALTA DE INFORMAÇÃO NA NOTA','CONCLUÍDO','CANCELADO'];
+const SITUACAO_VISITA_OPTIONS = ['NÃO INICIADO','VISITADO','NÃO VISITADO','EM ELABORAÇÃO','ELABORADO','PENDENTE ELABORAÇÃO','FALTA DE INFORMAÇÃO NA NOTA','PROGRAMADO','CONCLUÍDO','CANCELADO'];
 const TEAM_MEMBERS = ['RÔMULO','LUCAS','JOÃO','JOSÉ','RICHARD'];
 function situacaoVisitaCode(s){
   if(s==='VISITADO' || s==='CONCLUÍDO' || s==='ELABORADO') return 'ok';
@@ -847,7 +847,7 @@ function renderResumoSemanaList(list, emptyMsg){
 function renderResumoSemana(){
   const visitadas = notasDaSemanaPorSituacao(['VISITADO']);
   const canceladas = notasDaSemanaPorSituacao(['CANCELADO']);
-  const executadas = notasDaSemanaPorSituacao(['ELABORADO','CONCLUÍDO']);
+  const programadas = notasDaSemanaPorSituacao(['PROGRAMADO']);
   return `
     <div class="dash-section">
       <h3>Visitadas nesta semana</h3>
@@ -858,12 +858,12 @@ function renderResumoSemana(){
       ${renderResumoSemanaList(canceladas, 'Nenhuma nota cancelada nesta semana.')}
     </div>
     <div class="dash-section">
-      <h3>Executadas nesta semana</h3>
-      ${renderResumoSemanaList(executadas, 'Nenhuma nota executada/concluída nesta semana.')}
+      <h3>Programados na semana</h3>
+      ${renderResumoSemanaList(programadas, 'Nenhuma nota marcada como programada nesta semana.')}
     </div>
     <div class="empty" style="padding:14px;margin-top:6px;">
       <b style="font-size:13px;">Como funciona</b>
-      Esta aba mostra notas cuja "Situação da Visita" foi alterada para Visitado, Cancelado, Elaborado ou Concluído durante a semana atual (segunda a domingo). A data considerada é a da última mudança de status, feita na aba Notas.
+      Esta aba mostra notas cuja "Situação da Visita" foi alterada para Visitado, Cancelado ou Programado durante a semana atual (segunda a domingo). A data considerada é a da última mudança de status, feita na aba Notas.
     </div>
   `;
 }
