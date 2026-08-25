@@ -344,7 +344,8 @@ const FIELDS = {
     {key:'solicitante', label:'Solicitante', type:'text'},
     {key:'telefone', label:'Telefone', type:'text'},
     {key:'centroCusto', label:'Centro de Custo', type:'text'},
-    {key:'responsavel', label:'Responsável', type:'text'},
+    {key:'responsavel', label:'Gerente', type:'text'},
+    {key:'observacao', label:'Observação', type:'textarea', full:true},
   ],
 };
 const NOTA_STATUS_OPTIONS = ['Pendente','Concluído'];
@@ -365,6 +366,18 @@ function teamSelect(n, field){
     <option value="" ${!current?'selected':''}>Selecionar…</option>
     ${TEAM_MEMBERS.map(m=>`<option value="${m}" ${current===m?'selected':''}>${m}</option>`).join('')}
   </select>`;
+}
+function esc(v){ return (v==null?'':String(v)).replace(/"/g,'&quot;'); }
+function editText(n, field, opts){
+  opts = opts || {};
+  const val = esc(n[field]);
+  const cls = opts.mono ? 'date-input mono' : 'date-input';
+  const width = opts.width || '120px';
+  return `<input type="text" class="${cls}" style="min-width:${width};" value="${val}" onchange="updateNotaField('${n.id}','${field}',this.value)"/>`;
+}
+function editTextarea(n, field, width){
+  const val = esc(n[field]);
+  return `<textarea class="date-input" style="min-width:${width||'160px'};min-height:36px;" onchange="updateNotaField('${n.id}','${field}',this.value)">${val}</textarea>`;
 }
 
 const firebaseConfig = {
@@ -988,14 +1001,14 @@ function renderNotasTable(){
   rows = applyFilters('notas', rows, matchers);
   const q = normSearch(searchQuery.notas);
   if(q){
-    rows = rows.filter(n=> normSearch([n.numero,n.area,n.texto,n.solicitante,n.telefone,n.centroCusto,n.responsavel,n.primeiroResponsavel,n.responsavelAtual].join(' ')).includes(q));
+    rows = rows.filter(n=> normSearch([n.numero,n.area,n.texto,n.solicitante,n.telefone,n.centroCusto,n.responsavel,n.primeiroResponsavel,n.responsavelAtual,n.observacao,n.motivoCancelamento].join(' ')).includes(q));
   }
   const filterBar = renderNotasFilterBar();
   if(rows.length===0){
     return filterBar + `<div class="empty"><b>Nenhuma nota encontrada</b>Ajuste a busca ou os filtros acima.</div>`;
   }
   return filterBar + `<div class="table-scroll"><table><thead><tr>
-      <th>Foto</th><th>Nº Nota</th><th>Área</th><th>Descrição</th><th>Solicitante</th><th>Telefone</th><th>Centro de Custo</th><th>Responsável</th><th>Data da Solicitação</th><th>Data da Visita</th><th>Situação da Visita</th><th>Primeiro Responsável</th><th>Responsável Atual</th><th>Vencimento</th><th>Status</th><th></th>
+      <th>Foto</th><th>Nº Nota</th><th>Área</th><th>Descrição</th><th>Solicitante</th><th>Telefone</th><th>Centro de Custo</th><th>Gerente</th><th>Data da Solicitação</th><th>Data da Visita</th><th>Situação da Visita</th><th>Motivo do Cancelamento</th><th>Primeiro Responsável</th><th>Responsável Atual</th><th>Vencimento</th><th>Status</th><th>Observação</th><th></th>
     </tr></thead><tbody>
     ${rows.map(n=>{
       const v = notaVencimento(n.dataSolicitacao);
@@ -1006,20 +1019,21 @@ function renderNotasTable(){
       const situacaoCode = situacaoVisitaCode(n.situacaoVisita||'NÃO INICIADO');
       return `<tr>
         <td>${foto}</td>
-        <td class="mono">${n.numero}</td>
-        <td>${n.area}</td>
-        <td>${n.texto}</td>
-        <td>${n.solicitante||'—'}</td>
-        <td class="mono">${n.telefone||'—'}</td>
-        <td>${n.centroCusto||'—'}</td>
-        <td>${n.responsavel||'—'}</td>
-        <td class="mono">${n.dataSolicitacao||'—'}</td>
+        <td>${editText(n,'numero',{mono:true, width:'90px'})}</td>
+        <td>${editText(n,'area',{width:'110px'})}</td>
+        <td>${editTextarea(n,'texto','170px')}</td>
+        <td>${editText(n,'solicitante',{width:'120px'})}</td>
+        <td>${editText(n,'telefone',{mono:true, width:'110px'})}</td>
+        <td>${editText(n,'centroCusto',{width:'110px'})}</td>
+        <td>${editText(n,'responsavel',{width:'110px'})}</td>
+        <td><input type="date" class="date-input" value="${n.dataSolicitacao||''}" onchange="updateNotaField('${n.id}','dataSolicitacao',this.value)"/></td>
         <td><input type="date" class="date-input" value="${n.dataVisita||''}" onchange="updateNotaField('${n.id}','dataVisita',this.value)"/></td>
         <td>
           <select class="status-select ${situacaoCode}" onchange="updateNotaField('${n.id}','situacaoVisita',this.value)">
             ${SITUACAO_VISITA_OPTIONS.map(o=>`<option value="${o}" ${(n.situacaoVisita||'NÃO INICIADO')===o?'selected':''}>${o}</option>`).join('')}
           </select>
         </td>
+        <td>${(n.situacaoVisita==='CANCELADO') ? editText(n,'motivoCancelamento',{width:'150px'}) : '<span class="mono">—</span>'}</td>
         <td>${teamSelect(n,'primeiroResponsavel')}</td>
         <td>${teamSelect(n,'responsavelAtual')}</td>
         <td><span class="status-tag ${v.code}">${v.label}</span><div class="mono" style="margin-top:4px;">${diasTxt}</div></td>
@@ -1028,6 +1042,7 @@ function renderNotasTable(){
             ${NOTA_STATUS_OPTIONS.map(o=>`<option value="${o}" ${normalizeNotaStatus(n.status)===o?'selected':''}>${o}</option>`).join('')}
           </select>
         </td>
+        <td>${editTextarea(n,'observacao','160px')}</td>
         <td><div class="row-actions">
           <button class="btn small ghost" onclick="printNota('${n.id}')">Imprimir</button>
           <button class="btn small danger-ghost" onclick="removeItem('notas','${n.id}')">Excluir</button>
@@ -1063,14 +1078,16 @@ function printNota(id){
         <tr><td class="label">Data da Solicitação</td><td>${n.dataSolicitacao}</td></tr>
         <tr><td class="label">Data da Visita</td><td>${n.dataVisita||'—'}</td></tr>
         <tr><td class="label">Situação da Visita</td><td>${n.situacaoVisita||'Não Visitada'}</td></tr>
+        ${n.situacaoVisita==='CANCELADO' ? `<tr><td class="label">Motivo do Cancelamento</td><td>${n.motivoCancelamento||'—'}</td></tr>` : ''}
         <tr><td class="label">Primeiro Responsável</td><td>${n.primeiroResponsavel||'—'}</td></tr>
         <tr><td class="label">Responsável Atual</td><td>${n.responsavelAtual||'—'}</td></tr>
         <tr><td class="label">Vencimento (16 dias)</td><td>${v.label} — ${diasTxt}</td></tr>
         <tr><td class="label">Solicitante</td><td>${n.solicitante||'—'}</td></tr>
         <tr><td class="label">Telefone</td><td>${n.telefone||'—'}</td></tr>
         <tr><td class="label">Centro de Custo</td><td>${n.centroCusto||'—'}</td></tr>
-        <tr><td class="label">Responsável</td><td>${n.responsavel||'—'}</td></tr>
+        <tr><td class="label">Gerente</td><td>${n.responsavel||'—'}</td></tr>
         <tr><td class="label">Status</td><td>${normalizeNotaStatus(n.status)}</td></tr>
+        <tr><td class="label">Observação</td><td class="desc">${n.observacao||'—'}</td></tr>
       </table>
       ${n.foto ? `<img src="${n.foto}"/>` : ''}
     </body></html>
@@ -1507,6 +1524,10 @@ async function updateNotaField(id, field, value){
   if(!item) return;
   item[field] = value;
   if(field==='situacaoVisita' || field==='status'){ item.atualizadoEm = Date.now(); }
+  if(field==='situacaoVisita' && value==='CANCELADO' && !item.motivoCancelamento){
+    const motivo = window.prompt('Motivo do cancelamento da nota ' + (item.numero||'') + ':', '');
+    if(motivo && motivo.trim()){ item.motivoCancelamento = motivo.trim(); }
+  }
   render();
   await saveTab('notas');
 }
